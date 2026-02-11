@@ -29,6 +29,8 @@ function getSortedArtifacts(solution: Solution, sortKey: SortKey): string[] {
             return keys.sort((a, b) => solution.crafts[b].xp - solution.crafts[a].xp)
         case "xpPerGe":
             return keys.sort((a, b) => solution.crafts[b].xpPerGe - solution.crafts[a].xpPerGe)
+        default:
+            return keys.sort()
     }
 }
 
