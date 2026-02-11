@@ -5,7 +5,8 @@
 }
 
 body {
-    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
     background-color: #1a1a2e;
     color: #e0e0e0;
     padding: 2rem;
