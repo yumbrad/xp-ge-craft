@@ -1,6 +1,7 @@
 import { IBM_Plex_Mono } from "next/font/google"
 import Script from "next/script"
 import { JSX } from "react"
+import "./globals.css"
 
 export const metadata = {
     title: "LP Craft",
@@ -9,7 +10,7 @@ export const metadata = {
 
 // Use IBM Plex Mono for the whole page
 const font = IBM_Plex_Mono({
-    weight: "400",
+    weight: ["400", "700"],
     subsets: ["latin"],
 })
 

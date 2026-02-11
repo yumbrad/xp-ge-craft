@@ -10,6 +10,7 @@ export interface Solution {
             count: number,
             xp: number,
             cost: number,
+            xpPerGe: number,
         },
     },
     totalXp: number,
@@ -37,7 +38,8 @@ export function optimizeCrafts(highs: Highs, inventory: Inventory): Solution {
             const count = solution.Columns[artifact].Primal
             const xp = count * recipes[artifact].xp
             const cost = count * recipes[artifact].cost
-            result.crafts[artifact] = { count, xp, cost }
+            const xpPerGe = cost > 0 ? xp / cost : 0
+            result.crafts[artifact] = { count, xp, cost, xpPerGe }
             result.totalXp += xp
             result.totalCost += cost
         }
