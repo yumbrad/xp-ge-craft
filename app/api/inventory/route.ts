@@ -239,31 +239,31 @@ function decodeFirstContactResponse(options: {
 // depending on server/client builds (inflate, raw deflate, or gzip).
 function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
     const payload = Buffer.from(message)
-    const attempts: Array<{ name: string, attempt: () => Uint8Array }> = []
+    const decompressionAttempts: Array<{ name: string, attempt: () => Uint8Array }> = []
     const isGzip = payload.length >= 2 && payload[0] === 0x1f && payload[1] === 0x8b
     const isZlib = payload.length >= 1 && payload[0] === 0x78
     if (isGzip) {
-        attempts.push({ name: "unzip", attempt: () => zlib.unzipSync(payload) })
+        decompressionAttempts.push({ name: "unzip", attempt: () => zlib.unzipSync(payload) })
     }
     if (isZlib) {
-        attempts.push({ name: "inflate", attempt: () => zlib.inflateSync(payload) })
+        decompressionAttempts.push({ name: "inflate", attempt: () => zlib.inflateSync(payload) })
     }
-    attempts.push({ name: "inflateRaw", attempt: () => zlib.inflateRawSync(payload) })
+    decompressionAttempts.push({ name: "inflateRaw", attempt: () => zlib.inflateRawSync(payload) })
     if (!isGzip) {
-        attempts.push({ name: "unzip", attempt: () => zlib.unzipSync(payload) })
+        decompressionAttempts.push({ name: "unzip", attempt: () => zlib.unzipSync(payload) })
     }
     if (!isZlib) {
-        attempts.push({ name: "inflate", attempt: () => zlib.inflateSync(payload) })
+        decompressionAttempts.push({ name: "inflate", attempt: () => zlib.inflateSync(payload) })
     }
-    let lastError: unknown = null
-    for (const { attempt: decompress } of attempts) {
+    let lastError: unknown
+    for (const { attempt } of decompressionAttempts) {
         try {
-            return decompress()
+            return attempt()
         } catch (error) {
             lastError = error
         }
     }
     const lastErrorMessage = lastError instanceof Error ? lastError.message : String(lastError)
-    const attemptNames = attempts.map((attempt) => attempt.name).join(", ")
+    const attemptNames = decompressionAttempts.map((attempt) => attempt.name).join(", ")
     throw new Error(`Unexpected compression format or corrupted data; failed to decompress authenticated message payload using ${attemptNames} (${lastErrorMessage})`)
 }
