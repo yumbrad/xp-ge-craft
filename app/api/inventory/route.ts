@@ -205,10 +205,10 @@ function decodeFirstContactResponse(options: {
     try {
         return ResponseMessage.decode(responseBytes)
     } catch (responseError) {
-        let authenticated: AuthenticatedMessagePayload
+        let authenticatedPayload: AuthenticatedMessagePayload
         try {
             const decoded = AuthenticatedMessage.decode(responseBytes)
-            authenticated = AuthenticatedMessage.toObject(decoded, {
+            authenticatedPayload = AuthenticatedMessage.toObject(decoded, {
                 defaults: true,
                 bytes: Uint8Array, // Preserve bytes for protobuf decoding.
             }) as AuthenticatedMessagePayload
@@ -217,14 +217,19 @@ function decodeFirstContactResponse(options: {
             const authDetails = authError instanceof Error ? authError.message : String(authError)
             throw new Error(`Failed to decode first-contact response (${responseDetails}); authenticated wrapper decode failed (${authDetails})`)
         }
-        if (!authenticated?.message || authenticated.message.length === 0) {
+        if (!authenticatedPayload?.message || authenticatedPayload.message.length === 0) {
             const responseDetails = responseError instanceof Error ? responseError.message : String(responseError)
             throw new Error(`Authenticated response contained no payload to decode (${responseDetails})`)
         }
-        const payloadBytes = authenticated.compressed
-            ? inflateAuthenticatedMessage(authenticated.message)
-            : authenticated.message
-        return ResponseMessage.decode(payloadBytes)
+        const payloadBytes = authenticatedPayload.compressed
+            ? inflateAuthenticatedMessage(authenticatedPayload.message)
+            : authenticatedPayload.message
+        try {
+            return ResponseMessage.decode(payloadBytes)
+        } catch (payloadError) {
+            const payloadDetails = payloadError instanceof Error ? payloadError.message : String(payloadError)
+            throw new Error(`Failed to decode authenticated payload (${payloadDetails})`)
+        }
     }
 }
 
