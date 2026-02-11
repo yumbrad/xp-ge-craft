@@ -6,17 +6,18 @@ import { Highs, Solution, optimizeCrafts } from "../lib/optimize"
 import React, { JSX, useState, useEffect } from "react"
 
 type SortKey = "name" | "xp" | "xpPerGe"
+type InventoryResponse = CraftingProfile & { error?: string, details?: string }
 
 /**
  * Fetches artifact data and runs the linear program solver.
  */
 async function getOptimalCrafts(highs: Highs, eid: string): Promise<Solution> {
     const response = await fetch(`/api/inventory?eid=${encodeURIComponent(eid)}`)
-    let data: CraftingProfile & { error?: string, details?: string }
+    let data: InventoryResponse | null = null
     try {
         data = await response.json()
     } catch {
-        data = {} as CraftingProfile
+        data = null
     }
     if (!response.ok) {
         const message = data?.details || data?.error || `Request failed (${response.status})`
