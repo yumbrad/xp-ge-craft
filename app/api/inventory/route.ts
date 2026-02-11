@@ -212,8 +212,10 @@ function decodeFirstContactResponse(options: {
                 defaults: true,
                 bytes: Uint8Array, // Preserve bytes for protobuf decoding.
             }) as AuthenticatedMessagePayload
-        } catch {
-            throw responseError
+        } catch (authError) {
+            const responseDetails = responseError instanceof Error ? responseError.message : String(responseError)
+            const authDetails = authError instanceof Error ? authError.message : String(authError)
+            throw new Error(`Failed to decode first-contact response (${responseDetails}); authenticated wrapper decode failed (${authDetails})`)
         }
         if (!authenticated?.message || authenticated.message.length === 0) {
             throw responseError
@@ -238,7 +240,7 @@ function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
                 return zlib.unzipSync(payload)
             } catch (unzipError) {
                 const lastError = unzipError instanceof Error ? unzipError.message : String(unzipError)
-                throw new Error(`Failed to decompress authenticated message payload using inflate, inflateRaw, and unzip (${lastError})`)
+                throw new Error(`Unexpected compression format or corrupted data; failed to decompress authenticated message payload using inflate, inflateRaw, and unzip (${lastError})`)
             }
         }
     }
