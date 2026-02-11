@@ -37,6 +37,11 @@ export interface IngredientCost {
     discountPercent: number,
 }
 
+// Discount curve constants for crafting history (hits 10% of base cost after 300 crafts).
+const MAX_CRAFT_COUNT_FOR_DISCOUNT = 300
+const MAX_DISCOUNT_FACTOR = 0.9
+const DISCOUNT_CURVE_EXPONENT = 0.2
+
 /**
  * Calculates the crafts to maximize XP given the artifacts in an inventory.
  */
@@ -154,8 +159,8 @@ function getDiscountedCost(baseCost: number, craftCount: number): { discountedCo
     if (baseCost <= 0) {
         return { discountedCost: 0, discountPercent: 0 }
     }
-    const progress = Math.min(1, craftCount / 300)
-    const multiplier = 1 - 0.9 * Math.pow(progress, 0.2)
+    const progress = Math.min(1, craftCount / MAX_CRAFT_COUNT_FOR_DISCOUNT)
+    const multiplier = 1 - MAX_DISCOUNT_FACTOR * Math.pow(progress, DISCOUNT_CURVE_EXPONENT)
     const discountedCost = Math.floor(baseCost * multiplier)
     const discountPercent = baseCost > 0 ? 1 - discountedCost / baseCost : 0
     return { discountedCost, discountPercent }

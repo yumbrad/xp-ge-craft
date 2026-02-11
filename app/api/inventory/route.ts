@@ -36,6 +36,7 @@ interface BackupCraftableArtifact {
 }
 
 const BACKUP_URL = "https://www.auxbrain.com/ei/bot_first_contact"
+// Update this if the Egg Inc. client/server rejects requests due to an outdated version.
 const CLIENT_VERSION = 68
 const PROTO_PATH = path.join(process.cwd(), "data", "ei.proto")
 const LEVEL_INDEX: Record<string, number> = {
