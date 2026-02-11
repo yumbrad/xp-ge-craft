@@ -38,6 +38,7 @@ interface BackupCraftableArtifact {
 const BACKUP_URL = "https://www.auxbrain.com/ei/bot_first_contact"
 // Update this if the Egg Inc. client/server rejects requests due to an outdated version.
 const CLIENT_VERSION = 68
+const APP_VERSION = "1.28.0"
 const PROTO_PATH = path.join(process.cwd(), "data", "ei.proto")
 const LEVEL_INDEX: Record<string, number> = {
     INFERIOR: 0,
@@ -85,10 +86,10 @@ async function getCraftingProfile(eid: string): Promise<CraftingProfile> {
         deviceId: "xp-ge-craft",
         platform: 1,
         rinfo: {
-            build: "1.28.0",
+            build: APP_VERSION,
             clientVersion: CLIENT_VERSION,
             platform: "ANDROID",
-            version: "1.28.0",
+            version: APP_VERSION,
         },
     }
     const errMsg = RequestMessage.verify(payload)

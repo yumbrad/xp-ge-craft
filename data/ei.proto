@@ -1,4 +1,4 @@
-successfully downloaded text file (SHA: f2a1240ddd9d8a880869d87604a6006428efc37b)syntax = "proto2";
+syntax = "proto2";
 
 package ei;
 
