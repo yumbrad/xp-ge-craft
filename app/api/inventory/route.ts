@@ -37,6 +37,7 @@ interface BackupCraftableArtifact {
 }
 
 interface AuthenticatedMessagePayload {
+    // Encoded protobuf payload (EggIncFirstContactResponse) from the server.
     message?: Uint8Array,
     compressed?: boolean,
     originalSize?: number,
@@ -209,7 +210,7 @@ function decodeFirstContactResponse(options: {
             const decoded = AuthenticatedMessage.decode(responseBytes)
             authenticated = AuthenticatedMessage.toObject(decoded, {
                 defaults: true,
-                bytes: Uint8Array,
+                bytes: Uint8Array, // Preserve bytes for protobuf decoding.
             }) as AuthenticatedMessagePayload
         } catch {
             throw responseError
