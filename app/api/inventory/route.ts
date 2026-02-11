@@ -1,6 +1,7 @@
 import axios from "axios"
 import protobuf from "protobufjs"
 import path from "path"
+import zlib from "zlib"
 import { NextRequest } from "next/server"
 
 export const runtime = "nodejs"
@@ -33,6 +34,12 @@ interface BackupCraftableArtifact {
         level?: string | number,
     },
     count?: number,
+}
+
+interface AuthenticatedMessagePayload {
+    message?: Uint8Array,
+    compressed?: boolean,
+    originalSize?: number,
 }
 
 const BACKUP_URL = "https://www.auxbrain.com/ei/bot_first_contact"
@@ -82,6 +89,7 @@ async function getCraftingProfile(eid: string): Promise<CraftingProfile> {
     const root = await getProtoRoot()
     const RequestMessage = root.lookupType("ei.EggIncFirstContactRequest")
     const ResponseMessage = root.lookupType("ei.EggIncFirstContactResponse")
+    const AuthenticatedMessage = root.lookupType("ei.AuthenticatedMessage")
 
     const payload = {
         eiUserId: eid,
@@ -110,7 +118,11 @@ async function getCraftingProfile(eid: string): Promise<CraftingProfile> {
         responseType: "arraybuffer",
     })
 
-    const decodedResponse = ResponseMessage.decode(new Uint8Array(response.data))
+    const decodedResponse = decodeFirstContactResponse({
+        responseBytes: new Uint8Array(response.data),
+        ResponseMessage,
+        AuthenticatedMessage,
+    })
     const data = ResponseMessage.toObject(decodedResponse, {
         longs: String,
         enums: String,
@@ -181,4 +193,46 @@ function formatSpecName(spec?: { name?: string, level?: string | number }): stri
     }
     const tier = levelIndex + 1
     return `${spec.name.toLowerCase()}_${tier}`
+}
+
+function decodeFirstContactResponse(options: {
+    responseBytes: Uint8Array,
+    ResponseMessage: protobuf.Type,
+    AuthenticatedMessage: protobuf.Type,
+}): protobuf.Message {
+    const { responseBytes, ResponseMessage, AuthenticatedMessage } = options
+    try {
+        return ResponseMessage.decode(responseBytes)
+    } catch (responseError) {
+        let authenticated: AuthenticatedMessagePayload | null = null
+        try {
+            const decoded = AuthenticatedMessage.decode(responseBytes)
+            authenticated = AuthenticatedMessage.toObject(decoded, {
+                defaults: true,
+                bytes: Buffer,
+            }) as AuthenticatedMessagePayload
+        } catch {
+            throw responseError
+        }
+        if (!authenticated?.message || authenticated.message.length === 0) {
+            throw responseError
+        }
+        const payloadBytes = authenticated.compressed
+            ? inflateAuthenticatedMessage(authenticated.message)
+            : authenticated.message
+        return ResponseMessage.decode(payloadBytes)
+    }
+}
+
+function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
+    const payload = Buffer.from(message)
+    try {
+        return zlib.inflateSync(payload)
+    } catch (error) {
+        try {
+            return zlib.inflateRawSync(payload)
+        } catch {
+            return zlib.unzipSync(payload)
+        }
+    }
 }
