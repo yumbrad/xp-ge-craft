@@ -24,7 +24,7 @@ function getMissionStats(highs: Highs, mission: Mission): MissionStats {
     }
 
     // Calculate optimal XP
-    const solution = optimizeCrafts(highs, inventory)
+    const solution = optimizeCrafts(highs, inventory, {})
     return {
         ship: mission.ship,
         target: mission.target || "none",

@@ -169,3 +169,17 @@ h1 {
 .results-table tbody td.artifact-name {
     color: #c0c0c0;
 }
+
+.value-tooltip {
+    text-decoration: underline dashed;
+    text-underline-offset: 3px;
+    cursor: help;
+}
+
+.footnote {
+    margin-top: 1rem;
+    font-size: 0.75rem;
+    color: #9aa0b5;
+    max-width: 860px;
+    line-height: 1.4;
+}

@@ -1,6 +1,6 @@
 "use client"
 
-import { Inventory } from "./api/inventory/route"
+import type { CraftingProfile } from "./api/inventory/route"
 import useHighs from "../hooks/use-highs"
 import { Highs, Solution, optimizeCrafts } from "../lib/optimize"
 import React, { JSX, useState, useEffect } from "react"
@@ -11,10 +11,10 @@ type SortKey = "name" | "xp" | "xpPerGe"
  * Fetches artifact data and runs the linear program solver.
  */
 async function getOptimalCrafts(highs: Highs, eid: string): Promise<Solution> {
-    const inventory = await fetch(`/api/inventory?eid=${eid}`)
+    const profile = await fetch(`/api/inventory?eid=${eid}`)
         .then(response => response.json())
-        .then(data => data as Inventory)
-    return optimizeCrafts(highs, inventory)
+        .then(data => data as CraftingProfile)
+    return optimizeCrafts(highs, profile.inventory, profile.craftCounts)
 }
 
 /**
@@ -32,6 +32,44 @@ function getSortedArtifacts(solution: Solution, sortKey: SortKey): string[] {
         default:
             return keys.sort()
     }
+}
+
+function formatPercent(value: number): string {
+    return `${(value * 100).toFixed(1)}%`
+}
+
+function getCountTooltip(count: number): string {
+    return `Optimal crafts in the plan: ${count.toLocaleString()}`
+}
+
+function getXpTooltip(xpPerCraft: number, count: number): string {
+    return `XP per craft: ${xpPerCraft.toLocaleString()}\nCrafts: ${count.toLocaleString()}`
+}
+
+function getCostTooltip(artifact: string, craft: Solution["crafts"][string]): string {
+    const costDetails = craft.costDetails
+    const lines = [
+        `Artifact: ${artifact}`,
+        `Crafts: ${craft.count.toLocaleString()}`,
+        `Base GE cost: ${costDetails.baseCost.toLocaleString()}`,
+        `Craft history: ${costDetails.craftCount.toLocaleString()}`,
+        `Discount: ${formatPercent(costDetails.discountPercent)}`,
+        `Discounted cost per craft: ${costDetails.discountedCost.toLocaleString()}`,
+    ]
+    if (costDetails.ingredients.length > 0) {
+        lines.push("Ingredient costs per craft:")
+        for (const ingredient of costDetails.ingredients) {
+            lines.push(`- ${ingredient.name} x${ingredient.quantity}: base ${ingredient.baseCost.toLocaleString()} GE -> ${ingredient.discountedCost.toLocaleString()} GE (${formatPercent(ingredient.discountPercent)} discount, ${ingredient.craftCount.toLocaleString()} crafts)`)
+        }
+    }
+    if (costDetails.recursiveCost > 0) {
+        lines.push(`Recursive cost per craft (from scratch): ${costDetails.recursiveCost.toLocaleString()} GE`)
+    }
+    return lines.join("\n")
+}
+
+function getXpPerGeTooltip(craft: Solution["crafts"][string]): string {
+    return `Total XP: ${craft.xp.toLocaleString()}\nTotal GE cost: ${craft.cost.toLocaleString()}`
 }
 
 export default function Home(): JSX.Element {
@@ -114,15 +152,42 @@ export default function Home(): JSX.Element {
                             {getSortedArtifacts(solution, sortKey).map(artifact => (
                                 <tr key={artifact}>
                                     <td className="artifact-name">{artifact}</td>
-                                    <td className="num">{solution.crafts[artifact].count.toLocaleString()}</td>
-                                    <td className="num">{solution.crafts[artifact].xp.toLocaleString()}</td>
-                                    <td className="num">{solution.crafts[artifact].cost.toLocaleString()}</td>
-                                    <td className="num">{solution.crafts[artifact].xpPerGe.toFixed(2)}</td>
+                                    <td className="num">
+                                        <span className="value-tooltip" title={getCountTooltip(solution.crafts[artifact].count)}>
+                                            {solution.crafts[artifact].count.toLocaleString()}
+                                        </span>
+                                    </td>
+                                    <td className="num">
+                                        <span className="value-tooltip" title={getXpTooltip(solution.crafts[artifact].xpPerCraft, solution.crafts[artifact].count)}>
+                                            {solution.crafts[artifact].xp.toLocaleString()}
+                                        </span>
+                                    </td>
+                                    <td className="num">
+                                        <span className="value-tooltip" title={getCostTooltip(artifact, solution.crafts[artifact])}>
+                                            {solution.crafts[artifact].cost.toLocaleString()}
+                                        </span>
+                                    </td>
+                                    <td className="num">
+                                        <span className="value-tooltip" title={getXpPerGeTooltip(solution.crafts[artifact])}>
+                                            {solution.crafts[artifact].xpPerGe.toFixed(2)}
+                                        </span>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
+                    <p className="footnote">
+                        * This view calculates the optimal crafts that maximize XP based on your current inventory.
+                        Counts and costs include any intermediate crafts required to build higher-tier items, and GE
+                        costs reflect your personal crafting history discounts.
+                    </p>
                 </>
+            )}
+            {!solution && (
+                <p className="footnote">
+                    * Enter your Egg Inc. ID and calculate to see the optimal crafting plan, including XP totals and
+                    discounted GE costs based on your crafting history.
+                </p>
             )}
         </>
     )
