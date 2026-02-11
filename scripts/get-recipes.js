@@ -28,6 +28,7 @@ for (const artifact of artifacts) {
     recipes[name] = {
         ingredients: {},
         xp: artifact.crafting_xp,
+        cost: Math.round(artifact.base_crafting_prices[0]),
     }
     for (const ingredient of artifact.recipe.ingredients) {
         const ingredientName = formatName(ingredient.id)
