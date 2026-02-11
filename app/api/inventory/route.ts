@@ -225,7 +225,7 @@ function decodeFirstContactResponse(options: {
     }
 }
 
-// AuthenticatedMessage payloads may be encoded with different zlib/gzip variants.
+// AuthenticatedMessage payloads can be compressed with different zlib/gzip variants.
 function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
     const payload = Buffer.from(message)
     try {
@@ -240,7 +240,7 @@ function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
                 const errorDetails = [inflateError, inflateRawError, unzipError]
                     .map((error) => error instanceof Error ? error.message : String(error))
                     .join(" | ")
-                throw new Error(`Unable to decompress authenticated message payload (${errorDetails})`)
+                throw new Error(`Unsupported or corrupted compression format; unable to decompress authenticated message payload (${errorDetails})`)
             }
         }
     }
