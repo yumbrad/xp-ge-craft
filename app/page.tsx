@@ -11,10 +11,21 @@ type SortKey = "name" | "xp" | "xpPerGe"
  * Fetches artifact data and runs the linear program solver.
  */
 async function getOptimalCrafts(highs: Highs, eid: string): Promise<Solution> {
-    const profile = await fetch(`/api/inventory?eid=${eid}`)
-        .then(response => response.json())
-        .then(data => data as CraftingProfile)
-    return optimizeCrafts(highs, profile.inventory, profile.craftCounts)
+    const response = await fetch(`/api/inventory?eid=${encodeURIComponent(eid)}`)
+    let data: CraftingProfile & { error?: string, details?: string }
+    try {
+        data = await response.json()
+    } catch {
+        data = {} as CraftingProfile
+    }
+    if (!response.ok) {
+        const message = data?.details || data?.error || `Request failed (${response.status})`
+        throw new Error(message)
+    }
+    if (!data?.inventory) {
+        throw new Error("No inventory data returned from the server.")
+    }
+    return optimizeCrafts(highs, data.inventory, data.craftCounts || {})
 }
 
 /**
@@ -77,6 +88,8 @@ export default function Home(): JSX.Element {
     const [ eid, setEID ] = useState<string>("")
     const [ solution, setSolution ] = useState<Solution | null>(null)
     const [ sortKey, setSortKey ] = useState<SortKey>("name")
+    const [ error, setError ] = useState<string | null>(null)
+    const [ isLoading, setIsLoading ] = useState<boolean>(false)
 
     // Load the EID from localstorage
     useEffect(() => {
@@ -100,11 +113,26 @@ export default function Home(): JSX.Element {
      */
     async function runOptimize() {
         if (!highs) {
+            setError("Solver is still loading. Please try again in a moment.")
             return
         }
-        window.localStorage["eid"] = eid
-        const result = await getOptimalCrafts(highs, eid)
-        setSolution(result)
+        if (!eid.trim()) {
+            setError("Please enter your Egg Inc. ID before calculating.")
+            return
+        }
+        setError(null)
+        setSolution(null)
+        setIsLoading(true)
+        try {
+            window.localStorage["eid"] = eid
+            const result = await getOptimalCrafts(highs, eid)
+            setSolution(result)
+        } catch (caughtError) {
+            const message = caughtError instanceof Error ? caughtError.message : "Unable to load inventory."
+            setError(message)
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     return (
@@ -118,8 +146,16 @@ export default function Home(): JSX.Element {
                     onChange={handleChange}
                     onPaste={event => setEID(event.clipboardData.getData("text"))}
                 />
-                <button onClick={runOptimize}>Calculate</button>
+                <button onClick={runOptimize} disabled={isLoading || !highs}>
+                    {isLoading ? "Calculating..." : "Calculate"}
+                </button>
             </div>
+            {error && (
+                <div className="error">
+                    Unable to calculate. {error}{" "}
+                    <a href="/diagnostics">Open diagnostics</a>.
+                </div>
+            )}
             {solution && (
                 <>
                     <div className="summary">
@@ -179,14 +215,16 @@ export default function Home(): JSX.Element {
                     <p className="footnote">
                         * This view calculates the optimal crafts that maximize XP based on your current inventory.
                         Counts and costs include any intermediate crafts required to build higher-tier items, and GE
-                        costs reflect your personal crafting history discounts.
+                        costs reflect your personal crafting history discounts. Need help? Visit{" "}
+                        <a href="/diagnostics">diagnostics</a>.
                     </p>
                 </>
             )}
             {!solution && (
                 <p className="footnote">
                     * Enter your Egg Inc. ID and calculate to see the optimal crafting plan, including XP totals and
-                    discounted GE costs based on your crafting history.
+                    discounted GE costs based on your crafting history. Need help? Visit{" "}
+                    <a href="/diagnostics">diagnostics</a>.
                 </p>
             )}
         </>
