@@ -26,7 +26,11 @@ async function getOptimalCrafts(highs: Highs, eid: string): Promise<Solution> {
     if (!data?.inventory) {
         throw new Error("No inventory data returned from the server.")
     }
-    return optimizeCrafts(highs, data.inventory, data.craftCounts || {})
+    const craftCounts = data.craftCounts || {}
+    if (!data.craftCounts) {
+        console.warn("Craft count data missing from API response.")
+    }
+    return optimizeCrafts(highs, data.inventory, craftCounts)
 }
 
 /**
@@ -91,6 +95,9 @@ export default function Home(): JSX.Element {
     const [ sortKey, setSortKey ] = useState<SortKey>("name")
     const [ error, setError ] = useState<string | null>(null)
     const [ isLoading, setIsLoading ] = useState<boolean>(false)
+    const errorMessage = error
+        ? (/^(unable|request failed)/i.test(error) ? error : `Unable to calculate. ${error}`)
+        : null
 
     // Load the EID from localstorage
     useEffect(() => {
@@ -151,9 +158,9 @@ export default function Home(): JSX.Element {
                     {isLoading ? "Calculating..." : "Calculate"}
                 </button>
             </div>
-            {error && (
+            {errorMessage && (
                 <div className="error">
-                    Unable to calculate. {error}{" "}
+                    {errorMessage}{" "}
                     <a href="/diagnostics">Open diagnostics</a>.
                 </div>
             )}
