@@ -1,21 +1,51 @@
-import { names } from "../../../data/names"
+import axios from "axios"
+import protobuf from "protobufjs"
+import path from "path"
 import { NextRequest } from "next/server"
 
-interface Artifact {
-    artifactType: {
-        id: number,
-    },
-    artifactRarity: {
-        name: string,
-    },
-    artifactLevel: {
-        id: number,
-    },
-    quantity: number,
-}
+export const runtime = "nodejs"
+
 export interface Inventory {
     [artifact: string]: number,
 }
+export interface CraftCounts {
+    [artifact: string]: number,
+}
+export interface CraftingProfile {
+    inventory: Inventory,
+    craftCounts: CraftCounts,
+}
+
+interface BackupInventoryItem {
+    artifact?: {
+        spec?: {
+            name?: string,
+            level?: string | number,
+            rarity?: string,
+        },
+    },
+    quantity?: number,
+}
+
+interface BackupCraftableArtifact {
+    spec?: {
+        name?: string,
+        level?: string | number,
+    },
+    count?: number,
+}
+
+const BACKUP_URL = "https://www.auxbrain.com/ei/bot_first_contact"
+const CLIENT_VERSION = 68
+const PROTO_PATH = path.join(process.cwd(), "data", "ei.proto")
+const LEVEL_INDEX: Record<string, number> = {
+    INFERIOR: 0,
+    LESSER: 1,
+    NORMAL: 2,
+    GREATER: 3,
+    SUPERIOR: 4,
+}
+let protoRootPromise: Promise<protobuf.Root> | null = null
 
 /**
  * Gets the inventory associated with an EID.
@@ -31,8 +61,8 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     // Get inventory from EID
     try {
-        const inventory = await getInventory(eid)
-        return new Response(JSON.stringify(inventory), { status: 200 })
+        const craftingProfile = await getCraftingProfile(eid)
+        return new Response(JSON.stringify(craftingProfile), { status: 200 })
     } catch {
         return new Response(JSON.stringify({
             error: "unable to get artifact inventory",
@@ -41,31 +71,109 @@ export async function GET(request: NextRequest): Promise<Response> {
 }
 
 /**
- * Fetches and parses the artifact inventory associated with an EID.
+ * Fetches and parses the artifact inventory and craft history associated with an EID.
  */
-async function getInventory(eid: string): Promise<Inventory> {
-    const INVENTORY_URL = "https://eggincdatacollection.azurewebsites.net/api/GetInventoryJson"
-    const artifacts = await fetch(
-        `${INVENTORY_URL}?eid=${eid}`,
-        { cache: "no-store" },
-    ).then(response => response.json()) as Artifact[]
+async function getCraftingProfile(eid: string): Promise<CraftingProfile> {
+    const root = await getProtoRoot()
+    const RequestMessage = root.lookupType("ei.EggIncFirstContactRequest")
+    const ResponseMessage = root.lookupType("ei.EggIncFirstContactResponse")
 
-    const inventory = {} as Inventory
-    for (const artifact of artifacts) {
-        if (artifact.artifactRarity.name != "COMMON") {
-            continue
-        }
-        const key = hashArtifact(artifact)
-        inventory[names[key]] = artifact.quantity
+    const payload = {
+        eiUserId: eid,
+        clientVersion: CLIENT_VERSION,
+        deviceId: "xp-ge-craft",
+        platform: 1,
+        rinfo: {
+            build: "1.28.0",
+            clientVersion: CLIENT_VERSION,
+            platform: "ANDROID",
+            version: "1.28.0",
+        },
+    }
+    const errMsg = RequestMessage.verify(payload)
+    if (errMsg) {
+        throw new Error(errMsg)
     }
 
+    const message = RequestMessage.create(payload)
+    const buffer = RequestMessage.encode(message).finish()
+    const formBody = new URLSearchParams({
+        data: Buffer.from(buffer).toString("base64"),
+    }).toString()
+    const response = await axios.post(BACKUP_URL, formBody, {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        responseType: "arraybuffer",
+    })
+
+    const decodedResponse = ResponseMessage.decode(new Uint8Array(response.data))
+    const data = ResponseMessage.toObject(decodedResponse, {
+        longs: String,
+        enums: String,
+        defaults: true,
+    }) as {
+        errorCode?: string | number,
+        errorMessage?: string,
+        backup?: {
+            artifactsDb?: {
+                inventoryItems?: BackupInventoryItem[],
+                artifactStatus?: BackupCraftableArtifact[],
+            },
+        },
+    }
+    if (data.errorCode && data.errorCode !== "NO_ERROR" && data.errorCode !== 0) {
+        throw new Error(data.errorMessage || "error fetching backup")
+    }
+
+    const inventory = parseInventory(data.backup?.artifactsDb?.inventoryItems || [])
+    const craftCounts = parseCraftCounts(data.backup?.artifactsDb?.artifactStatus || [])
+    return { inventory, craftCounts }
+}
+
+async function getProtoRoot(): Promise<protobuf.Root> {
+    if (!protoRootPromise) {
+        protoRootPromise = protobuf.load(PROTO_PATH)
+    }
+    return protoRootPromise
+}
+
+function parseInventory(items: BackupInventoryItem[]): Inventory {
+    const inventory = {} as Inventory
+    for (const item of items) {
+        const spec = item.artifact?.spec
+        if (!spec || spec.rarity !== "COMMON") {
+            continue
+        }
+        const name = formatSpecName(spec)
+        if (!name) {
+            continue
+        }
+        inventory[name] = Math.round(item.quantity || 0)
+    }
     return inventory
 }
 
-/**
- * Computes a unique numerical hash for an artifact.
- */
-function hashArtifact(artifact: Artifact): number {
-    const MAX_LEVEL = 3
-    return artifact.artifactType.id * (MAX_LEVEL + 1) + artifact.artifactLevel.id
+function parseCraftCounts(items: BackupCraftableArtifact[]): CraftCounts {
+    const craftCounts = {} as CraftCounts
+    for (const item of items) {
+        const name = formatSpecName(item.spec)
+        if (!name) {
+            continue
+        }
+        craftCounts[name] = item.count || 0
+    }
+    return craftCounts
+}
+
+function formatSpecName(spec?: { name?: string, level?: string | number }): string | null {
+    if (!spec?.name || spec.name === "UNKNOWN" || spec.level == null) {
+        return null
+    }
+    const levelIndex = typeof spec.level === "number"
+        ? spec.level
+        : LEVEL_INDEX[spec.level] ?? null
+    if (levelIndex == null) {
+        return null
+    }
+    const tier = levelIndex + 1
+    return `${spec.name.toLowerCase()}_${tier}`
 }
