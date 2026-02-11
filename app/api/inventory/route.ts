@@ -224,15 +224,23 @@ function decodeFirstContactResponse(options: {
     }
 }
 
+// AuthenticatedMessage payloads may be encoded with different zlib/gzip variants.
 function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
     const payload = Buffer.from(message)
     try {
         return zlib.inflateSync(payload)
-    } catch (error) {
+    } catch (inflateError) {
         try {
             return zlib.inflateRawSync(payload)
-        } catch {
-            return zlib.unzipSync(payload)
+        } catch (inflateRawError) {
+            try {
+                return zlib.unzipSync(payload)
+            } catch (unzipError) {
+                const errorDetails = [inflateError, inflateRawError, unzipError]
+                    .map((error) => error instanceof Error ? error.message : String(error))
+                    .join(" | ")
+                throw new Error(`Unable to decompress authenticated message payload (${errorDetails})`)
+            }
         }
     }
 }
