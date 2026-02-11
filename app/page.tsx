@@ -62,9 +62,10 @@ export default function Home(): JSX.Element {
             {solution ? (
                 <>
                     <div>Total XP: {solution.totalXp}</div>
+                    <div>Total GE cost: {solution.totalCost.toLocaleString()}</div>
                     {Object.keys(solution.crafts).sort().map(artifact => (
                         <div key={artifact}>
-                            {artifact}: {solution.crafts[artifact].count} ({solution.crafts[artifact].xp} xp)
+                            {artifact}: {solution.crafts[artifact].count} ({solution.crafts[artifact].xp} xp, {solution.crafts[artifact].cost.toLocaleString()} GE)
                         </div>
                     ))}
                 </>

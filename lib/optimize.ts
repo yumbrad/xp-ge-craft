@@ -9,9 +9,11 @@ export interface Solution {
         [artifact: string]: {
             count: number,
             xp: number,
+            cost: number,
         },
     },
     totalXp: number,
+    totalCost: number,
 }
 
 /**
@@ -28,13 +30,16 @@ export function optimizeCrafts(highs: Highs, inventory: Inventory): Solution {
     const result = {
         crafts: {},
         totalXp: 0,
+        totalCost: 0,
     } as Solution
     for (const artifact in solution.Columns) {
         if (recipes[artifact]) {
             const count = solution.Columns[artifact].Primal
             const xp = count * recipes[artifact].xp
-            result.crafts[artifact] = { count, xp }
+            const cost = count * recipes[artifact].cost
+            result.crafts[artifact] = { count, xp, cost }
             result.totalXp += xp
+            result.totalCost += cost
         }
     }
 
