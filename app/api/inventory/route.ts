@@ -221,9 +221,10 @@ function decodeFirstContactResponse(options: {
             const responseDetails = responseError instanceof Error ? responseError.message : String(responseError)
             throw new Error(`Authenticated response contained no payload to decode (${responseDetails})`)
         }
-        const payloadBytes = authenticatedPayload.compressed
-            ? inflateAuthenticatedMessage(authenticatedPayload.message)
-            : authenticatedPayload.message
+        let payloadBytes = authenticatedPayload.message
+        if (authenticatedPayload.compressed) {
+            payloadBytes = inflateAuthenticatedMessage(authenticatedPayload.message)
+        }
         try {
             return ResponseMessage.decode(payloadBytes)
         } catch (payloadError) {
@@ -233,7 +234,8 @@ function decodeFirstContactResponse(options: {
     }
 }
 
-// Decompress AuthenticatedMessage payloads which can use different zlib/gzip variants.
+// Decompress AuthenticatedMessage payloads which can use different zlib/gzip variants
+// depending on server/client builds (inflate, raw deflate, or gzip).
 function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
     const payload = Buffer.from(message)
     try {
