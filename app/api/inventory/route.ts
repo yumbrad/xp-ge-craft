@@ -204,12 +204,12 @@ function decodeFirstContactResponse(options: {
     try {
         return ResponseMessage.decode(responseBytes)
     } catch (responseError) {
-        let authenticated: AuthenticatedMessagePayload | null = null
+        let authenticated: AuthenticatedMessagePayload
         try {
             const decoded = AuthenticatedMessage.decode(responseBytes)
             authenticated = AuthenticatedMessage.toObject(decoded, {
                 defaults: true,
-                bytes: Buffer,
+                bytes: Uint8Array,
             }) as AuthenticatedMessagePayload
         } catch {
             throw responseError
