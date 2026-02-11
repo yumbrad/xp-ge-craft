@@ -254,8 +254,12 @@ function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
         addAttempt("inflate", () => zlib.inflateSync(payload))
     }
     addAttempt("inflateRaw", () => zlib.inflateRawSync(payload))
-    addAttempt("unzip", () => zlib.unzipSync(payload))
-    addAttempt("inflate", () => zlib.inflateSync(payload))
+    if (!isGzip) {
+        addAttempt("unzip", () => zlib.unzipSync(payload))
+    }
+    if (!isZlib) {
+        addAttempt("inflate", () => zlib.inflateSync(payload))
+    }
     let lastError: unknown = null
     for (const { attempt } of attempts) {
         try {
