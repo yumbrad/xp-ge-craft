@@ -1,4 +1,3 @@
-import { IBM_Plex_Mono } from "next/font/google"
 import Script from "next/script"
 import { JSX } from "react"
 import "./globals.css"
@@ -8,12 +7,6 @@ export const metadata = {
     description: "A linear program crafting XP optimizer",
 }
 
-// Use IBM Plex Mono for the whole page
-const font = IBM_Plex_Mono({
-    weight: ["400", "700"],
-    subsets: ["latin"],
-})
-
 export default function RootLayout({
     children,
 }: {
@@ -21,7 +14,7 @@ export default function RootLayout({
 }): JSX.Element {
     return (
         <html lang="en">
-            <body className={font.className}>
+            <body>
                 <Script src="/highs.js" strategy="beforeInteractive"></Script>
                 {children}
             </body>
