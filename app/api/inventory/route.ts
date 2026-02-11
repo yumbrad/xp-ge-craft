@@ -65,9 +65,12 @@ export async function GET(request: NextRequest): Promise<Response> {
     try {
         const craftingProfile = await getCraftingProfile(eid)
         return new Response(JSON.stringify(craftingProfile), { status: 200 })
-    } catch {
+    } catch (error) {
+        const details = error instanceof Error ? error.message : "unknown error"
+        console.error("Failed to load artifact inventory", error)
         return new Response(JSON.stringify({
             error: "unable to get artifact inventory",
+            details,
         }), { status: 500 })
     }
 }

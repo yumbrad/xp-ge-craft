@@ -177,6 +177,27 @@ h1 {
     cursor: help;
 }
 
+.error {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid #a94d4d;
+    border-radius: 4px;
+    background-color: #2a1e2a;
+    color: #f2b2b2;
+    font-size: 0.85rem;
+}
+
+.diagnostics-output {
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid #3a3a5c;
+    border-radius: 6px;
+    background-color: #111827;
+    color: #d1d5db;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+}
+
 .footnote {
     margin-top: 1rem;
     font-size: 0.75rem;
