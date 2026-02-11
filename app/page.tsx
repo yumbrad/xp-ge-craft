@@ -26,11 +26,11 @@ async function getOptimalCrafts(highs: Highs, eid: string): Promise<Solution> {
     if (!data?.inventory) {
         throw new Error("No inventory data returned from the server.")
     }
-    const craftCounts = data.craftCounts || {}
-    if (!data.craftCounts) {
+    const craftCounts = data.craftCounts
+    if (!craftCounts) {
         console.warn("Craft count data missing from API response.")
     }
-    return optimizeCrafts(highs, data.inventory, craftCounts)
+    return optimizeCrafts(highs, data.inventory, craftCounts || {})
 }
 
 /**
@@ -95,8 +95,11 @@ export default function Home(): JSX.Element {
     const [ sortKey, setSortKey ] = useState<SortKey>("name")
     const [ error, setError ] = useState<string | null>(null)
     const [ isLoading, setIsLoading ] = useState<boolean>(false)
+    const normalizedError = error ? error.trim() : ""
     const errorMessage = error
-        ? (/^(unable|request failed)/i.test(error) ? error : `Unable to calculate. ${error}`)
+        ? (/^(unable|request failed)/i.test(normalizedError)
+            ? normalizedError
+            : `Unable to calculate. ${normalizedError}`)
         : null
 
     // Load the EID from localstorage
