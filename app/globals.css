@@ -1,0 +1,171 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    background-color: #1a1a2e;
+    color: #e0e0e0;
+    padding: 2rem;
+    min-height: 100vh;
+}
+
+h1 {
+    color: #f5c542;
+    margin-bottom: 1.5rem;
+    font-size: 1.5rem;
+}
+
+.input-section {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.input-section label {
+    color: #b0b0b0;
+    font-size: 0.9rem;
+}
+
+.input-section input[type="text"] {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #3a3a5c;
+    border-radius: 4px;
+    background-color: #16213e;
+    color: #e0e0e0;
+    font-family: inherit;
+    font-size: 0.9rem;
+    width: 240px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.input-section input[type="text"]:focus {
+    border-color: #f5c542;
+}
+
+.input-section button {
+    padding: 0.5rem 1.25rem;
+    border: none;
+    border-radius: 4px;
+    background-color: #f5c542;
+    color: #1a1a2e;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.input-section button:hover {
+    background-color: #ffd966;
+}
+
+.summary {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+}
+
+.summary-card {
+    background-color: #16213e;
+    border: 1px solid #3a3a5c;
+    border-radius: 6px;
+    padding: 0.75rem 1.25rem;
+}
+
+.summary-card .label {
+    font-size: 0.75rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.summary-card .value {
+    font-size: 1.25rem;
+    color: #f5c542;
+    font-weight: 700;
+}
+
+.sort-section {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.sort-section span {
+    font-size: 0.8rem;
+    color: #888;
+}
+
+.sort-section button {
+    padding: 0.3rem 0.75rem;
+    border: 1px solid #3a3a5c;
+    border-radius: 4px;
+    background-color: #16213e;
+    color: #b0b0b0;
+    font-family: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.sort-section button:hover {
+    border-color: #f5c542;
+    color: #e0e0e0;
+}
+
+.sort-section button.active {
+    background-color: #f5c542;
+    color: #1a1a2e;
+    border-color: #f5c542;
+    font-weight: 700;
+}
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.results-table thead th {
+    text-align: left;
+    padding: 0.5rem 1rem;
+    border-bottom: 2px solid #f5c542;
+    color: #f5c542;
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.results-table thead th.num {
+    text-align: right;
+}
+
+.results-table tbody tr {
+    border-bottom: 1px solid #2a2a4a;
+    transition: background-color 0.15s;
+}
+
+.results-table tbody tr:hover {
+    background-color: #1e2a4a;
+}
+
+.results-table tbody td {
+    padding: 0.4rem 1rem;
+}
+
+.results-table tbody td.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.results-table tbody td.artifact-name {
+    color: #c0c0c0;
+}
