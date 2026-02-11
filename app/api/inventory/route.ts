@@ -240,30 +240,25 @@ function decodeFirstContactResponse(options: {
 function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
     const payload = Buffer.from(message)
     const attempts: Array<{ name: string, attempt: () => Uint8Array }> = []
-    const addAttempt = (name: string, attempt: () => Uint8Array) => {
-        if (!attempts.some((existing) => existing.name === name)) {
-            attempts.push({ name, attempt })
-        }
-    }
     const isGzip = payload.length >= 2 && payload[0] === 0x1f && payload[1] === 0x8b
     const isZlib = payload.length >= 1 && payload[0] === 0x78
     if (isGzip) {
-        addAttempt("unzip", () => zlib.unzipSync(payload))
+        attempts.push({ name: "unzip", attempt: () => zlib.unzipSync(payload) })
     }
     if (isZlib) {
-        addAttempt("inflate", () => zlib.inflateSync(payload))
+        attempts.push({ name: "inflate", attempt: () => zlib.inflateSync(payload) })
     }
-    addAttempt("inflateRaw", () => zlib.inflateRawSync(payload))
+    attempts.push({ name: "inflateRaw", attempt: () => zlib.inflateRawSync(payload) })
     if (!isGzip) {
-        addAttempt("unzip", () => zlib.unzipSync(payload))
+        attempts.push({ name: "unzip", attempt: () => zlib.unzipSync(payload) })
     }
     if (!isZlib) {
-        addAttempt("inflate", () => zlib.inflateSync(payload))
+        attempts.push({ name: "inflate", attempt: () => zlib.inflateSync(payload) })
     }
     let lastError: unknown = null
-    for (const { attempt } of attempts) {
+    for (const { attempt: decompress } of attempts) {
         try {
-            return attempt()
+            return decompress()
         } catch (error) {
             lastError = error
         }
