@@ -218,7 +218,8 @@ function decodeFirstContactResponse(options: {
             throw new Error(`Failed to decode first-contact response (${responseDetails}); authenticated wrapper decode failed (${authDetails})`)
         }
         if (!authenticated?.message || authenticated.message.length === 0) {
-            throw responseError
+            const responseDetails = responseError instanceof Error ? responseError.message : String(responseError)
+            throw new Error(`Authenticated response contained no payload to decode (${responseDetails})`)
         }
         const payloadBytes = authenticated.compressed
             ? inflateAuthenticatedMessage(authenticated.message)
@@ -227,7 +228,7 @@ function decodeFirstContactResponse(options: {
     }
 }
 
-// Decompresses AuthenticatedMessage payloads which can use different zlib/gzip variants.
+// Decompress AuthenticatedMessage payloads which can use different zlib/gzip variants.
 function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
     const payload = Buffer.from(message)
     try {
