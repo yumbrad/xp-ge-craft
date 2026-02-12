@@ -22,6 +22,7 @@ export interface Solution {
 export interface CostDetails {
     baseCost: number,
     discountedCost: number,
+    totalDirectCost: number,
     craftCount: number,
     discountPercent: number,
     recursiveCost: number,
@@ -33,6 +34,7 @@ export interface IngredientCost {
     quantity: number,
     baseCost: number,
     discountedCost: number,
+    totalCost: number,
     craftCount: number,
     discountPercent: number,
 }
@@ -58,14 +60,13 @@ export function optimizeCrafts(highs: Highs, inventory: Inventory, craftCounts: 
         totalXp: 0,
         totalCost: 0,
     } as Solution
-    const recursiveCosts = {} as Record<string, number>
     for (const artifact in solution.Columns) {
         if (recipes[artifact]) {
             const count = solution.Columns[artifact].Primal
             const xpPerCraft = recipes[artifact].xp
             const xp = count * xpPerCraft
-            const costDetails = getCostDetails(recipes, craftCounts, recursiveCosts, artifact)
-            const cost = count * costDetails.discountedCost
+            const costDetails = getCostDetails(recipes, craftCounts, artifact, count)
+            const cost = costDetails.totalDirectCost
             const xpPerGe = cost > 0 ? xp / cost : 0
             result.crafts[artifact] = { count, xp, cost, xpPerGe, xpPerCraft, costDetails }
             result.totalXp += xp
@@ -79,14 +80,15 @@ export function optimizeCrafts(highs: Highs, inventory: Inventory, craftCounts: 
 function getCostDetails(
     recipes: Recipes,
     craftCounts: CraftCounts,
-    recursiveCosts: Record<string, number>,
     artifact: string,
+    plannedCrafts: number,
 ): CostDetails {
     const recipe = recipes[artifact]
     if (!recipe) {
         return {
             baseCost: 0,
             discountedCost: 0,
+            totalDirectCost: 0,
             craftCount: 0,
             discountPercent: 0,
             recursiveCost: 0,
@@ -99,9 +101,10 @@ function getCostDetails(
     return {
         baseCost: recipe.cost,
         discountedCost,
+        totalDirectCost: getBatchDirectCost(recipe.cost, craftCount, plannedCrafts),
         craftCount,
         discountPercent,
-        recursiveCost: getRecursiveCost(recipes, craftCounts, recursiveCosts, artifact),
+        recursiveCost: getRecursiveCost(recipes, craftCounts, artifact),
         ingredients: getIngredientCosts(recipes, craftCounts, artifact),
     }
 }
@@ -125,6 +128,7 @@ function getIngredientCosts(
             quantity,
             baseCost,
             discountedCost,
+            totalCost: getBatchDirectCost(baseCost, craftCount, quantity),
             craftCount,
             discountPercent,
         }
@@ -134,24 +138,51 @@ function getIngredientCosts(
 function getRecursiveCost(
     recipes: Recipes,
     craftCounts: CraftCounts,
-    recursiveCosts: Record<string, number>,
     artifact: string,
 ): number {
-    if (artifact in recursiveCosts) {
-        return recursiveCosts[artifact]
-    }
+    const projectedCraftCounts = {
+        ...craftCounts,
+    } as CraftCounts
+    return getRecursiveCraftCost(recipes, projectedCraftCounts, artifact)
+}
+
+function getRecursiveCraftCost(
+    recipes: Recipes,
+    projectedCraftCounts: CraftCounts,
+    artifact: string,
+): number {
     const recipe = recipes[artifact]
     if (!recipe) {
-        recursiveCosts[artifact] = 0
         return 0
     }
-    const craftCount = craftCounts[artifact] || 0
-    const { discountedCost } = getDiscountedCost(recipe.cost, craftCount)
-    let totalCost = discountedCost
+
+    let totalCost = 0
     for (const [ingredient, quantity] of Object.entries(recipe.ingredients)) {
-        totalCost += quantity * getRecursiveCost(recipes, craftCounts, recursiveCosts, ingredient)
+        const ingredientRecipe = recipes[ingredient]
+        if (!ingredientRecipe) {
+            continue
+        }
+        for (let index = 0; index < quantity; index += 1) {
+            totalCost += getRecursiveCraftCost(recipes, projectedCraftCounts, ingredient)
+        }
     }
-    recursiveCosts[artifact] = totalCost
+
+    const craftCount = projectedCraftCounts[artifact] || 0
+    const { discountedCost } = getDiscountedCost(recipe.cost, craftCount)
+    totalCost += discountedCost
+    projectedCraftCounts[artifact] = craftCount + 1
+    return totalCost
+}
+
+function getBatchDirectCost(baseCost: number, craftCount: number, quantity: number): number {
+    if (baseCost <= 0 || quantity <= 0) {
+        return 0
+    }
+    const craftTotal = Math.max(0, Math.round(quantity))
+    let totalCost = 0
+    for (let index = 0; index < craftTotal; index += 1) {
+        totalCost += getDiscountedCost(baseCost, craftCount + index).discountedCost
+    }
     return totalCost
 }
 

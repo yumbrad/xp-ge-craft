@@ -60,22 +60,25 @@ function getXpTooltip(xpPerCraft: number, count: number): string {
 
 function getCostTooltip(artifact: string, craft: Solution["crafts"][string]): string {
     const costDetails = craft.costDetails
+    const plannedCrafts = Math.max(0, Math.round(craft.count))
+    const craftLabel = plannedCrafts === 1 ? "craft" : "crafts"
     const lines = [
         `Artifact: ${artifact}`,
         `Crafts: ${craft.count.toLocaleString()}`,
         `Base GE cost: ${costDetails.baseCost.toLocaleString()}`,
         `Craft history: ${costDetails.craftCount.toLocaleString()}`,
-        `Discount: ${formatPercent(costDetails.discountPercent)}`,
-        `Discounted cost per craft: ${costDetails.discountedCost.toLocaleString()}`,
+        `Current discount: ${formatPercent(costDetails.discountPercent)}`,
+        `Next craft cost: ${costDetails.discountedCost.toLocaleString()} GE`,
+        `Direct GE cost in table (${plannedCrafts.toLocaleString()} ${craftLabel}): ${costDetails.totalDirectCost.toLocaleString()} GE`,
     ]
     if (costDetails.ingredients.length > 0) {
-        lines.push("Ingredient costs per craft:")
+        lines.push("Ingredient direct costs for one parent craft (sequential discounts):")
         for (const ingredient of costDetails.ingredients) {
-            lines.push(`- ${ingredient.name} x${ingredient.quantity}: base ${ingredient.baseCost.toLocaleString()} GE -> ${ingredient.discountedCost.toLocaleString()} GE (${formatPercent(ingredient.discountPercent)} discount, ${ingredient.craftCount.toLocaleString()} crafts)`)
+            lines.push(`- ${ingredient.name} x${ingredient.quantity}: starts at ${ingredient.discountedCost.toLocaleString()} GE (${formatPercent(ingredient.discountPercent)} discount, ${ingredient.craftCount.toLocaleString()} crafts) -> total ${ingredient.totalCost.toLocaleString()} GE`)
         }
     }
     if (costDetails.recursiveCost > 0) {
-        lines.push(`Recursive cost per craft (from scratch): ${costDetails.recursiveCost.toLocaleString()} GE`)
+        lines.push(`Recursive cost per craft from scratch (with sequential ingredient discounts): ${costDetails.recursiveCost.toLocaleString()} GE`)
     }
     return lines.join("\n")
 }
