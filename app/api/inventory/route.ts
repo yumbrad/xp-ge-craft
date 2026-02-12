@@ -37,7 +37,7 @@ interface BackupCraftableArtifact {
 }
 
 interface AuthenticatedMessagePayload {
-    // Encoded protobuf payload (EggIncFirstContactResponse) from the server.
+    // Encoded Protobuf payload (EggIncFirstContactResponse) from the server.
     message?: Uint8Array,
     compressed?: boolean,
     // Present in payloads but not required for decoding.
@@ -236,27 +236,28 @@ function decodeFirstContactResponse(options: {
 }
 
 // Decompress AuthenticatedMessage payloads which can use different zlib/gzip variants
-// depending on server/client builds (inflate, raw deflate, or gzip).
+// depending on server/client builds (inflate, raw deflate, or gzip). Header bytes hint
+// at the format, but fallback attempts handle mismatches across versions.
 function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
     const payload = Buffer.from(message)
-    const decompressionAttempts: Array<{ name: string, attempt: () => Uint8Array }> = []
+    const decompressionMethods: Array<{ name: string, attempt: () => Uint8Array }> = []
     const isGzip = payload.length >= 2 && payload[0] === 0x1f && payload[1] === 0x8b
     const isZlib = payload.length >= 1 && payload[0] === 0x78
     if (isGzip) {
-        decompressionAttempts.push({ name: "unzip", attempt: () => zlib.unzipSync(payload) })
+        decompressionMethods.push({ name: "unzip", attempt: () => zlib.unzipSync(payload) })
     }
     if (isZlib) {
-        decompressionAttempts.push({ name: "inflate", attempt: () => zlib.inflateSync(payload) })
+        decompressionMethods.push({ name: "inflate", attempt: () => zlib.inflateSync(payload) })
     }
-    decompressionAttempts.push({ name: "inflateRaw", attempt: () => zlib.inflateRawSync(payload) })
+    decompressionMethods.push({ name: "inflateRaw", attempt: () => zlib.inflateRawSync(payload) })
     if (!isGzip) {
-        decompressionAttempts.push({ name: "unzip", attempt: () => zlib.unzipSync(payload) })
+        decompressionMethods.push({ name: "unzip", attempt: () => zlib.unzipSync(payload) })
     }
     if (!isZlib) {
-        decompressionAttempts.push({ name: "inflate", attempt: () => zlib.inflateSync(payload) })
+        decompressionMethods.push({ name: "inflate", attempt: () => zlib.inflateSync(payload) })
     }
     let lastError: unknown
-    for (const { attempt } of decompressionAttempts) {
+    for (const { attempt } of decompressionMethods) {
         try {
             return attempt()
         } catch (error) {
@@ -264,6 +265,6 @@ function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
         }
     }
     const lastErrorMessage = lastError instanceof Error ? lastError.message : String(lastError)
-    const attemptNames = decompressionAttempts.map((attempt) => attempt.name).join(", ")
+    const attemptNames = decompressionMethods.map((attempt) => attempt.name).join(", ")
     throw new Error(`Unexpected compression format or corrupted data; failed to decompress authenticated message payload using ${attemptNames} (${lastErrorMessage})`)
 }
