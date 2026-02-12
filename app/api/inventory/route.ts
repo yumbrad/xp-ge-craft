@@ -121,7 +121,7 @@ async function getCraftingProfile(eid: string): Promise<CraftingProfile> {
     })
 
     const decodedResponse = decodeFirstContactResponse({
-        responseBytes: new Uint8Array(response.data),
+        responseBytes: normalizeResponseBytes(new Uint8Array(response.data)),
         ResponseMessage,
         AuthenticatedMessage,
     })
@@ -288,4 +288,54 @@ function isValidZlibHeader(payload: Uint8Array): boolean {
     }
     const header = (payload[0] << 8) + payload[1]
     return header % 31 === 0
+}
+
+/**
+ * Auxbrain can return either raw protobuf bytes or a base64 text envelope.
+ * Normalize both formats to raw protobuf bytes for downstream decoding.
+ */
+function normalizeResponseBytes(responseBytes: Uint8Array): Uint8Array {
+    if (responseBytes.length === 0 || !isTextPayload(responseBytes)) {
+        return responseBytes
+    }
+    let payloadText = Buffer.from(responseBytes).toString("utf8").trim()
+    if (!payloadText) {
+        return responseBytes
+    }
+    if (payloadText.startsWith("data=")) {
+        try {
+            payloadText = decodeURIComponent(payloadText.slice("data=".length))
+        } catch {
+            return responseBytes
+        }
+    }
+    const base64Payload = payloadText.replace(/\s+/g, "")
+    if (!isBase64Payload(base64Payload)) {
+        return responseBytes
+    }
+    try {
+        const decoded = Buffer.from(base64Payload, "base64")
+        return decoded.length > 0 ? new Uint8Array(decoded) : responseBytes
+    } catch {
+        return responseBytes
+    }
+}
+
+function isTextPayload(responseBytes: Uint8Array): boolean {
+    for (let index = 0; index < responseBytes.length; index += 1) {
+        const byte = responseBytes[index]
+        const isAsciiPrintable = byte >= 0x20 && byte <= 0x7e
+        const isWhitespace = byte === 0x09 || byte === 0x0a || byte === 0x0d
+        if (!isAsciiPrintable && !isWhitespace) {
+            return false
+        }
+    }
+    return true
+}
+
+function isBase64Payload(payloadText: string): boolean {
+    if (!payloadText) {
+        return false
+    }
+    return /^[A-Za-z0-9+/]+={0,2}$/.test(payloadText)
 }
