@@ -211,7 +211,7 @@ function decodeFirstContactResponse(options: {
             const decoded = AuthenticatedMessage.decode(responseBytes)
             authenticatedPayload = AuthenticatedMessage.toObject(decoded, {
                 defaults: true,
-                bytes: Uint8Array, // Preserve bytes for protobuf decoding.
+                bytes: Uint8Array, // Preserve bytes for Protobuf decoding.
             }) as AuthenticatedMessagePayload
         } catch (authError) {
             const responseDetails = responseError instanceof Error ? responseError.message : String(responseError)
@@ -236,7 +236,7 @@ function decodeFirstContactResponse(options: {
 }
 
 // Decompress AuthenticatedMessage payloads which can use different zlib/gzip variants
-// depending on server/client builds (inflate, raw deflate, or gzip). Header bytes hint
+// depending on server/client builds (unzip/gzip, inflate/zlib, or inflateRaw/raw deflate). Header bytes hint
 // at the format, but fallback attempts handle mismatches across versions.
 function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
     const payload = Buffer.from(message)
@@ -257,9 +257,9 @@ function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
         decompressionMethods.push({ name: "inflate", attempt: () => zlib.inflateSync(payload) })
     }
     let lastError: unknown
-    for (const { attempt } of decompressionMethods) {
+    for (const method of decompressionMethods) {
         try {
-            return attempt()
+            return method.attempt()
         } catch (error) {
             lastError = error
         }
