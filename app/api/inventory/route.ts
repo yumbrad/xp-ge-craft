@@ -235,27 +235,24 @@ function decodeFirstContactResponse(options: {
     }
 }
 
-// Decompress AuthenticatedMessage payloads which can use different zlib/gzip variants
-// depending on server/client builds (unzip/gzip, inflate/zlib, or inflateRaw/raw deflate). Header bytes hint
-// at the format, but fallback attempts handle mismatches across versions.
+/**
+ * Decompress AuthenticatedMessage payloads which can use different zlib/gzip variants
+ * depending on server/client builds (unzip/gzip, inflate/zlib, or inflateRaw/raw deflate).
+ * Header bytes hint at the format, but fallback attempts handle mismatches across versions.
+ */
 function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
     const payload = Buffer.from(message)
-    const decompressionMethods: Array<{ name: string, attempt: () => Uint8Array }> = []
     const isGzip = payload.length >= 2 && payload[0] === 0x1f && payload[1] === 0x8b
     const isZlib = payload.length >= 1 && payload[0] === 0x78
-    if (isGzip) {
-        decompressionMethods.push({ name: "unzip", attempt: () => zlib.unzipSync(payload) })
-    }
-    if (isZlib) {
-        decompressionMethods.push({ name: "inflate", attempt: () => zlib.inflateSync(payload) })
-    }
-    decompressionMethods.push({ name: "inflateRaw", attempt: () => zlib.inflateRawSync(payload) })
-    if (!isGzip) {
-        decompressionMethods.push({ name: "unzip", attempt: () => zlib.unzipSync(payload) })
-    }
-    if (!isZlib) {
-        decompressionMethods.push({ name: "inflate", attempt: () => zlib.inflateSync(payload) })
-    }
+    const methods = [
+        { name: "unzip", prefer: isGzip, attempt: () => zlib.unzipSync(payload) },
+        { name: "inflate", prefer: isZlib, attempt: () => zlib.inflateSync(payload) },
+        { name: "inflateRaw", prefer: !isGzip && !isZlib, attempt: () => zlib.inflateRawSync(payload) },
+    ]
+    const decompressionMethods = [
+        ...methods.filter((method) => method.prefer),
+        ...methods.filter((method) => !method.prefer),
+    ]
     let lastError: unknown
     for (const method of decompressionMethods) {
         try {
@@ -265,6 +262,9 @@ function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
         }
     }
     const lastErrorMessage = lastError instanceof Error ? lastError.message : String(lastError)
+    const headerPreview = Array.from(payload.slice(0, 4))
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join(" ")
     const attemptNames = decompressionMethods.map((attempt) => attempt.name).join(", ")
-    throw new Error(`Unexpected compression format or corrupted data; failed to decompress authenticated message payload using ${attemptNames} (${lastErrorMessage})`)
+    throw new Error(`Unexpected compression format or corrupted data; failed to decompress authenticated message payload using ${attemptNames} (header ${headerPreview}) (${lastErrorMessage})`)
 }
