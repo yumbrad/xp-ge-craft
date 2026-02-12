@@ -1,6 +1,7 @@
 import axios from "axios"
 import protobuf from "protobufjs"
 import path from "path"
+import zlib from "zlib"
 import { NextRequest } from "next/server"
 
 export const runtime = "nodejs"
@@ -33,6 +34,14 @@ interface BackupCraftableArtifact {
         level?: string | number,
     },
     count?: number,
+}
+
+interface AuthenticatedMessagePayload {
+    // Encoded Protobuf payload (EggIncFirstContactResponse) from the server.
+    message?: Uint8Array,
+    compressed?: boolean,
+    // Present in payloads but not required for decoding.
+    originalSize?: number,
 }
 
 const BACKUP_URL = "https://www.auxbrain.com/ei/bot_first_contact"
@@ -82,6 +91,7 @@ async function getCraftingProfile(eid: string): Promise<CraftingProfile> {
     const root = await getProtoRoot()
     const RequestMessage = root.lookupType("ei.EggIncFirstContactRequest")
     const ResponseMessage = root.lookupType("ei.EggIncFirstContactResponse")
+    const AuthenticatedMessage = root.lookupType("ei.AuthenticatedMessage")
 
     const payload = {
         eiUserId: eid,
@@ -110,7 +120,11 @@ async function getCraftingProfile(eid: string): Promise<CraftingProfile> {
         responseType: "arraybuffer",
     })
 
-    const decodedResponse = ResponseMessage.decode(new Uint8Array(response.data))
+    const decodedResponse = decodeFirstContactResponse({
+        responseBytes: new Uint8Array(response.data),
+        ResponseMessage,
+        AuthenticatedMessage,
+    })
     const data = ResponseMessage.toObject(decodedResponse, {
         longs: String,
         enums: String,
@@ -181,4 +195,97 @@ function formatSpecName(spec?: { name?: string, level?: string | number }): stri
     }
     const tier = levelIndex + 1
     return `${spec.name.toLowerCase()}_${tier}`
+}
+
+function decodeFirstContactResponse(options: {
+    responseBytes: Uint8Array,
+    ResponseMessage: protobuf.Type,
+    AuthenticatedMessage: protobuf.Type,
+}): protobuf.Message {
+    const { responseBytes, ResponseMessage, AuthenticatedMessage } = options
+    try {
+        return ResponseMessage.decode(responseBytes)
+    } catch (responseError) {
+        let authenticatedPayload: AuthenticatedMessagePayload
+        try {
+            const decoded = AuthenticatedMessage.decode(responseBytes)
+            authenticatedPayload = AuthenticatedMessage.toObject(decoded, {
+                defaults: true,
+                bytes: Uint8Array, // Preserve bytes for Protobuf decoding.
+            }) as AuthenticatedMessagePayload
+        } catch (authError) {
+            const responseDetails = responseError instanceof Error ? responseError.message : String(responseError)
+            const authDetails = authError instanceof Error ? authError.message : String(authError)
+            throw new Error(`Failed to decode first-contact response (${responseDetails}); authenticated wrapper decode failed (${authDetails})`)
+        }
+        if (!authenticatedPayload?.message || authenticatedPayload.message.length === 0) {
+            const responseDetails = responseError instanceof Error ? responseError.message : String(responseError)
+            throw new Error(`Authenticated response contained no payload to decode (${responseDetails})`)
+        }
+        let payloadBytes = authenticatedPayload.message
+        if (authenticatedPayload.compressed || hasCompressionHeader(payloadBytes)) {
+            payloadBytes = inflateAuthenticatedMessage(authenticatedPayload.message)
+        }
+        try {
+            return ResponseMessage.decode(payloadBytes)
+        } catch (payloadError) {
+            const payloadDetails = payloadError instanceof Error ? payloadError.message : String(payloadError)
+            throw new Error(`Failed to decode authenticated payload (${payloadDetails})`)
+        }
+    }
+}
+
+/**
+ * Decompress AuthenticatedMessage payloads which can use different zlib/gzip variants
+ * depending on server/client builds (unzip/gzip, inflate/zlib, or inflateRaw/raw deflate).
+ * Header bytes hint at the format, but fallback attempts handle mismatches across versions.
+ */
+function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
+    const payload = Buffer.from(message)
+    const isGzip = isGzipHeader(payload)
+    const isZlib = isValidZlibHeader(payload)
+    const decompressionMethods: Array<{ name: string, attempt: () => Uint8Array }> = []
+    const fallbackMethods: Array<{ name: string, attempt: () => Uint8Array }> = []
+    const addMethod = (method: { name: string, attempt: () => Uint8Array }, prefer: boolean) => {
+        if (prefer) {
+            decompressionMethods.push(method)
+        } else {
+            fallbackMethods.push(method)
+        }
+    }
+    addMethod({ name: "unzip", attempt: () => zlib.unzipSync(payload) }, isGzip)
+    addMethod({ name: "inflate", attempt: () => zlib.inflateSync(payload) }, isZlib)
+    addMethod({ name: "inflateRaw", attempt: () => zlib.inflateRawSync(payload) }, !isGzip && !isZlib)
+    decompressionMethods.push(...fallbackMethods)
+    let lastError: unknown
+    for (const method of decompressionMethods) {
+        try {
+            return method.attempt()
+        } catch (error) {
+            lastError = error
+        }
+    }
+    const lastErrorMessage = lastError instanceof Error ? lastError.message : String(lastError)
+    const headerPreviewBytes = 4
+    const headerPreview = Array.from(payload.slice(0, headerPreviewBytes))
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join(" ")
+    const attemptNames = decompressionMethods.map((attempt) => attempt.name).join(", ")
+    throw new Error(`Unexpected compression format or corrupted data; failed to decompress authenticated message payload using ${attemptNames} (header ${headerPreview}) (${lastErrorMessage})`)
+}
+
+function hasCompressionHeader(payload: Uint8Array): boolean {
+    return isGzipHeader(payload) || isValidZlibHeader(payload)
+}
+
+function isGzipHeader(payload: Uint8Array): boolean {
+    return payload.length >= 2 && payload[0] === 0x1f && payload[1] === 0x8b
+}
+
+function isValidZlibHeader(payload: Uint8Array): boolean {
+    if (payload.length < 2 || payload[0] !== 0x78) {
+        return false
+    }
+    const header = (payload[0] << 8) + payload[1]
+    return header % 31 === 0
 }
