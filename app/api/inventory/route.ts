@@ -243,16 +243,22 @@ function decodeFirstContactResponse(options: {
 function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
     const payload = Buffer.from(message)
     const isGzip = payload.length >= 2 && payload[0] === 0x1f && payload[1] === 0x8b
-    const isZlib = payload.length >= 1 && payload[0] === 0x78
-    const methods = [
-        { name: "unzip", prefer: isGzip, attempt: () => zlib.unzipSync(payload) },
-        { name: "inflate", prefer: isZlib, attempt: () => zlib.inflateSync(payload) },
-        { name: "inflateRaw", prefer: !isGzip && !isZlib, attempt: () => zlib.inflateRawSync(payload) },
-    ]
-    const decompressionMethods = [
-        ...methods.filter((method) => method.prefer),
-        ...methods.filter((method) => !method.prefer),
-    ]
+    const isZlib = payload.length >= 2
+        && payload[0] === 0x78
+        && ((payload[0] << 8) + payload[1]) % 31 === 0
+    const decompressionMethods: Array<{ name: string, attempt: () => Uint8Array }> = []
+    const fallbackMethods: Array<{ name: string, attempt: () => Uint8Array }> = []
+    const addMethod = (method: { name: string, attempt: () => Uint8Array }, prefer: boolean) => {
+        if (prefer) {
+            decompressionMethods.push(method)
+        } else {
+            fallbackMethods.push(method)
+        }
+    }
+    addMethod({ name: "unzip", attempt: () => zlib.unzipSync(payload) }, isGzip)
+    addMethod({ name: "inflate", attempt: () => zlib.inflateSync(payload) }, isZlib)
+    addMethod({ name: "inflateRaw", attempt: () => zlib.inflateRawSync(payload) }, !isGzip && !isZlib)
+    decompressionMethods.push(...fallbackMethods)
     let lastError: unknown
     for (const method of decompressionMethods) {
         try {
