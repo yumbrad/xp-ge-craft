@@ -173,9 +173,13 @@ h1 {
 
 .value-tooltip {
     text-decoration: underline dashed;
-    text-decoration-color: #5f6477;
+    text-decoration-color: #848ba1;
     text-underline-offset: 3px;
     cursor: help;
+}
+
+.table-section {
+    margin-top: 1.5rem;
 }
 
 .error {

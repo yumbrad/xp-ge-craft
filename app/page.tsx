@@ -100,6 +100,16 @@ function getXpTooltip(xpPerCraft: number, count: number): string {
     return `XP per craft: ${xpPerCraft.toLocaleString()}\nCrafts: ${count.toLocaleString()}`
 }
 
+function getModeRowTooltip(row: ModeComparisonRow): string {
+    return [
+        `Standalone row: ${row.artifactLabel}`,
+        `Craftable count: ${row.count.toLocaleString()}`,
+        `Total XP: ${row.xp.toLocaleString()}`,
+        `Total GE cost: ${row.cost.toLocaleString()}`,
+        `XP / GE: ${row.xpPerGe.toFixed(2)}`,
+    ].join("\n")
+}
+
 function getCostTooltip(artifact: string, craft: Solution["crafts"][string]): string {
     const costDetails = craft.costDetails
     const plannedCrafts = Math.max(0, Math.round(craft.count))
@@ -226,64 +236,72 @@ export default function Home(): JSX.Element {
                         <button className={sortKey === "xp" ? "active" : ""} onClick={() => setSortKey("xp")}>Total XP</button>
                         <button className={sortKey === "xpPerGe" ? "active" : ""} onClick={() => setSortKey("xpPerGe")}>XP / GE</button>
                     </div>
-                    <h3>Standalone Craft Options (Direct vs Auto-Crafting)</h3>
-                    <table className="results-table">
-                        <thead>
-                            <tr>
-                                <th>Artifact</th>
-                                <th className="num">Craftable Count</th>
-                                <th className="num">Total XP</th>
-                                <th className="num">GE Cost</th>
-                                <th className="num">XP / GE</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {getModeComparisonRows(solution, sortKey).map((row) => (
-                                <tr key={row.key}>
-                                    <td className="artifact-name">{row.artifactLabel}</td>
-                                    <td className="num">{row.count.toLocaleString()}</td>
-                                    <td className="num">{row.xp.toLocaleString()}</td>
-                                    <td className="num">{row.cost.toLocaleString()}</td>
-                                    <td className="num">{row.xpPerGe.toFixed(2)}</td>
+                    <div className="table-section">
+                        <h3>Standalone Craft Options (Direct vs Auto-Crafting)</h3>
+                        <table className="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Artifact</th>
+                                    <th className="num">Craftable Count</th>
+                                    <th className="num">Total XP</th>
+                                    <th className="num">GE Cost</th>
+                                    <th className="num">XP / GE</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    <h3>LP Max-XP Plan (Reference)</h3>
-                    <table className="results-table">
-                        <thead>
-                            <tr>
-                                <th>Artifact</th>
-                                <th className="num">Count</th>
-                                <th className="num">XP</th>
-                                <th className="num">GE Cost</th>
-                                <th className="num">XP / GE</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {getSortedArtifacts(solution, sortKey).map(artifact => (
-                                <tr key={artifact}>
-                                    <td className="artifact-name">{artifact}</td>
-                                    <td className="num">
-                                        {solution.crafts[artifact].count.toLocaleString()}
-                                    </td>
-                                    <td className="num">
-                                        <span className="value-tooltip" title={getXpTooltip(solution.crafts[artifact].xpPerCraft, solution.crafts[artifact].count)}>
-                                            {solution.crafts[artifact].xp.toLocaleString()}
-                                        </span>
-                                    </td>
-                                    <td className="num">
-                                        <span className="value-tooltip" title={getCostTooltip(artifact, solution.crafts[artifact])}>
-                                            {solution.crafts[artifact].cost.toLocaleString()}
-                                        </span>
-                                    </td>
-                                    <td className="num">
-                                        {solution.crafts[artifact].xpPerGe.toFixed(2)}
-                                    </td>
+                            </thead>
+                            <tbody>
+                                {getModeComparisonRows(solution, sortKey).map((row) => (
+                                    <tr key={row.key}>
+                                        <td className="artifact-name">{row.artifactLabel}</td>
+                                        <td className="num"><span className="value-tooltip" title={getModeRowTooltip(row)}>{row.count.toLocaleString()}</span></td>
+                                        <td className="num"><span className="value-tooltip" title={getModeRowTooltip(row)}>{row.xp.toLocaleString()}</span></td>
+                                        <td className="num"><span className="value-tooltip" title={getModeRowTooltip(row)}>{row.cost.toLocaleString()}</span></td>
+                                        <td className="num"><span className="value-tooltip" title={getModeRowTooltip(row)}>{row.xpPerGe.toFixed(2)}</span></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="table-section">
+                        <h3>LP Max-XP Plan (Reference)</h3>
+                        <table className="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Artifact</th>
+                                    <th className="num">Count</th>
+                                    <th className="num">XP</th>
+                                    <th className="num">GE Cost</th>
+                                    <th className="num">XP / GE</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {getSortedArtifacts(solution, sortKey).map(artifact => (
+                                    <tr key={artifact}>
+                                        <td className="artifact-name">{artifact}</td>
+                                        <td className="num">
+                                            <span className="value-tooltip" title={getXpTooltip(solution.crafts[artifact].xpPerCraft, solution.crafts[artifact].count)}>
+                                                {solution.crafts[artifact].count.toLocaleString()}
+                                            </span>
+                                        </td>
+                                        <td className="num">
+                                            <span className="value-tooltip" title={getXpTooltip(solution.crafts[artifact].xpPerCraft, solution.crafts[artifact].count)}>
+                                                {solution.crafts[artifact].xp.toLocaleString()}
+                                            </span>
+                                        </td>
+                                        <td className="num">
+                                            <span className="value-tooltip" title={getCostTooltip(artifact, solution.crafts[artifact])}>
+                                                {solution.crafts[artifact].cost.toLocaleString()}
+                                            </span>
+                                        </td>
+                                        <td className="num">
+                                            <span className="value-tooltip" title={getCostTooltip(artifact, solution.crafts[artifact])}>
+                                                {solution.crafts[artifact].xpPerGe.toFixed(2)}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                     <p className="footnote">
                         * This view calculates the optimal crafts that maximize XP based on your current inventory.
                         Counts and costs include any intermediate crafts required to build higher-tier items, and GE

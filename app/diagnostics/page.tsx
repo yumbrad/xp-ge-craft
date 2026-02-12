@@ -47,7 +47,10 @@ export default function Diagnostics(): JSX.Element {
                     type="text"
                     value={eid}
                     onChange={event => setEID(event.target.value)}
-                    onPaste={event => setEID(event.clipboardData.getData("text"))}
+                    onPaste={event => {
+                        event.preventDefault()
+                        setEID(event.clipboardData.getData("text"))
+                    }}
                 />
                 <button onClick={runDiagnostics} disabled={isLoading}>
                     {isLoading ? "Running..." : "Run Diagnostics"}
