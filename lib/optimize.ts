@@ -56,6 +56,7 @@ export interface IngredientCost {
 const MAX_CRAFT_COUNT_FOR_DISCOUNT = 300
 const MAX_DISCOUNT_FACTOR = 0.9
 const DISCOUNT_CURVE_EXPONENT = 0.2
+const ZERO_TOLERANCE = 1e-9
 
 /**
  * Calculates the crafts to maximize XP given the artifacts in an inventory.
@@ -75,7 +76,7 @@ export function optimizeCrafts(highs: Highs, inventory: Inventory, craftCounts: 
     } as Solution
     for (const artifact in solution.Columns) {
         if (recipes[artifact]) {
-            const count = solution.Columns[artifact].Primal
+            const count = normalizeCount(solution.Columns[artifact].Primal)
             const xpPerCraft = recipes[artifact].xp
             const xp = count * xpPerCraft
             const costDetails = getCostDetails(recipes, craftCounts, artifact, count)
@@ -89,6 +90,13 @@ export function optimizeCrafts(highs: Highs, inventory: Inventory, craftCounts: 
     }
 
     return result
+}
+
+function normalizeCount(value: number): number {
+    if (Math.abs(value) < ZERO_TOLERANCE) {
+        return 0
+    }
+    return value < 0 ? 0 : value
 }
 
 function getCostDetails(
