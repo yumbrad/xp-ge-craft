@@ -173,6 +173,7 @@ h1 {
 
 .value-tooltip {
     text-decoration: underline dashed;
+    text-decoration-color: #5f6477;
     text-underline-offset: 3px;
     cursor: help;
 }

@@ -54,10 +54,6 @@ function formatPercent(value: number): string {
     return `${(value * 100).toFixed(1)}%`
 }
 
-function getCountTooltip(count: number): string {
-    return `Optimal crafts in the plan: ${count.toLocaleString()}`
-}
-
 function getXpTooltip(xpPerCraft: number, count: number): string {
     return `XP per craft: ${xpPerCraft.toLocaleString()}\nCrafts: ${count.toLocaleString()}`
 }
@@ -82,10 +78,6 @@ function getCostTooltip(artifact: string, craft: Solution["crafts"][string]): st
         lines.push(`Recursive cost per craft (from scratch): ${costDetails.recursiveCost.toLocaleString()} GE`)
     }
     return lines.join("\n")
-}
-
-function getXpPerGeTooltip(craft: Solution["crafts"][string]): string {
-    return `Total XP: ${craft.xp.toLocaleString()}\nTotal GE cost: ${craft.cost.toLocaleString()}`
 }
 
 export default function Home(): JSX.Element {
@@ -200,9 +192,7 @@ export default function Home(): JSX.Element {
                                 <tr key={artifact}>
                                     <td className="artifact-name">{artifact}</td>
                                     <td className="num">
-                                        <span className="value-tooltip" title={getCountTooltip(solution.crafts[artifact].count)}>
-                                            {solution.crafts[artifact].count.toLocaleString()}
-                                        </span>
+                                        {solution.crafts[artifact].count.toLocaleString()}
                                     </td>
                                     <td className="num">
                                         <span className="value-tooltip" title={getXpTooltip(solution.crafts[artifact].xpPerCraft, solution.crafts[artifact].count)}>
@@ -215,9 +205,7 @@ export default function Home(): JSX.Element {
                                         </span>
                                     </td>
                                     <td className="num">
-                                        <span className="value-tooltip" title={getXpPerGeTooltip(solution.crafts[artifact])}>
-                                            {solution.crafts[artifact].xpPerGe.toFixed(2)}
-                                        </span>
+                                        {solution.crafts[artifact].xpPerGe.toFixed(2)}
                                     </td>
                                 </tr>
                             ))}
