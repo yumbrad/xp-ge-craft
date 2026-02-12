@@ -9,6 +9,7 @@ type SortKey = "name" | "xp" | "xpPerGe"
 type InventoryResponse = CraftingProfile & { error?: string, details?: string }
 interface ModeComparisonRow {
     key: string,
+    artifact: string,
     artifactLabel: string,
     count: number,
     xp: number,
@@ -64,6 +65,7 @@ function getModeComparisonRows(solution: Solution, sortKey: SortKey): ModeCompar
         const craft = solution.crafts[artifact]
         rows.push({
             key: `${artifact}:direct`,
+            artifact,
             artifactLabel: `${artifact} (direct craft)`,
             count: craft.modeComparison.direct.count,
             xp: craft.modeComparison.direct.xp,
@@ -73,6 +75,7 @@ function getModeComparisonRows(solution: Solution, sortKey: SortKey): ModeCompar
         if (craft.modeComparison.auto) {
             rows.push({
                 key: `${artifact}:auto`,
+                artifact,
                 artifactLabel: `${artifact} (with auto-crafting)`,
                 count: craft.modeComparison.auto.count,
                 xp: craft.modeComparison.auto.xp,
@@ -98,16 +101,6 @@ function formatPercent(value: number): string {
 
 function getXpTooltip(xpPerCraft: number, count: number): string {
     return `XP per craft: ${xpPerCraft.toLocaleString()}\nCrafts: ${count.toLocaleString()}`
-}
-
-function getModeRowTooltip(row: ModeComparisonRow): string {
-    return [
-        `Standalone row: ${row.artifactLabel}`,
-        `Craftable count: ${row.count.toLocaleString()}`,
-        `Total XP: ${row.xp.toLocaleString()}`,
-        `Total GE cost: ${row.cost.toLocaleString()}`,
-        `XP / GE: ${row.xpPerGe.toFixed(2)}`,
-    ].join("\n")
 }
 
 function getCostTooltip(artifact: string, craft: Solution["crafts"][string]): string {
@@ -252,10 +245,18 @@ export default function Home(): JSX.Element {
                                 {getModeComparisonRows(solution, sortKey).map((row) => (
                                     <tr key={row.key}>
                                         <td className="artifact-name">{row.artifactLabel}</td>
-                                        <td className="num"><span className="value-tooltip" title={getModeRowTooltip(row)}>{row.count.toLocaleString()}</span></td>
-                                        <td className="num"><span className="value-tooltip" title={getModeRowTooltip(row)}>{row.xp.toLocaleString()}</span></td>
-                                        <td className="num"><span className="value-tooltip" title={getModeRowTooltip(row)}>{row.cost.toLocaleString()}</span></td>
-                                        <td className="num"><span className="value-tooltip" title={getModeRowTooltip(row)}>{row.xpPerGe.toFixed(2)}</span></td>
+                                        <td className="num">{row.count.toLocaleString()}</td>
+                                        <td className="num">
+                                            <span className="value-tooltip" title={getXpTooltip(solution.crafts[row.artifact].xpPerCraft, row.count)}>
+                                                {row.xp.toLocaleString()}
+                                            </span>
+                                        </td>
+                                        <td className="num">
+                                            <span className="value-tooltip" title={getCostTooltip(row.artifact, solution.crafts[row.artifact])}>
+                                                {row.cost.toLocaleString()}
+                                            </span>
+                                        </td>
+                                        <td className="num">{row.xpPerGe.toFixed(2)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -277,11 +278,7 @@ export default function Home(): JSX.Element {
                                 {getSortedArtifacts(solution, sortKey).map(artifact => (
                                     <tr key={artifact}>
                                         <td className="artifact-name">{artifact}</td>
-                                        <td className="num">
-                                            <span className="value-tooltip" title={getXpTooltip(solution.crafts[artifact].xpPerCraft, solution.crafts[artifact].count)}>
-                                                {solution.crafts[artifact].count.toLocaleString()}
-                                            </span>
-                                        </td>
+                                        <td className="num">{solution.crafts[artifact].count.toLocaleString()}</td>
                                         <td className="num">
                                             <span className="value-tooltip" title={getXpTooltip(solution.crafts[artifact].xpPerCraft, solution.crafts[artifact].count)}>
                                                 {solution.crafts[artifact].xp.toLocaleString()}
@@ -292,11 +289,7 @@ export default function Home(): JSX.Element {
                                                 {solution.crafts[artifact].cost.toLocaleString()}
                                             </span>
                                         </td>
-                                        <td className="num">
-                                            <span className="value-tooltip" title={getCostTooltip(artifact, solution.crafts[artifact])}>
-                                                {solution.crafts[artifact].xpPerGe.toFixed(2)}
-                                            </span>
-                                        </td>
+                                        <td className="num">{solution.crafts[artifact].xpPerGe.toFixed(2)}</td>
                                     </tr>
                                 ))}
                             </tbody>
