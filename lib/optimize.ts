@@ -241,13 +241,23 @@ function simulateCraftMode(
     artifact: string,
     allowAutocraft: boolean,
 ): { count: number, cost: number } {
-    const simulationInventory = cloneCountMap(inventory)
-    const simulationCraftCounts = cloneCountMap(craftCounts)
+    let simulationInventory = cloneCountMap(inventory)
+    let simulationCraftCounts = cloneCountMap(craftCounts)
     let totalCost = 0
     let craftedCount = 0
-    while (craftOne(recipes, simulationInventory, simulationCraftCounts, artifact, allowAutocraft, (cost) => {
-        totalCost += cost
-    })) {
+    while (true) {
+        const attemptInventory = cloneCountMap(simulationInventory)
+        const attemptCraftCounts = cloneCountMap(simulationCraftCounts)
+        let attemptCost = 0
+        const didCraft = craftOne(recipes, attemptInventory, attemptCraftCounts, artifact, allowAutocraft, (cost) => {
+            attemptCost += cost
+        })
+        if (!didCraft) {
+            break
+        }
+        simulationInventory = attemptInventory
+        simulationCraftCounts = attemptCraftCounts
+        totalCost += attemptCost
         craftedCount += 1
     }
     return {

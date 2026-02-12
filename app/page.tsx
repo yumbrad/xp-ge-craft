@@ -81,7 +81,15 @@ function getModeComparisonRows(solution: Solution, sortKey: SortKey): ModeCompar
             })
         }
     }
-    return rows
+    switch (sortKey) {
+        case "xp":
+            return rows.sort((a, b) => b.xp - a.xp || a.artifactLabel.localeCompare(b.artifactLabel))
+        case "xpPerGe":
+            return rows.sort((a, b) => b.xpPerGe - a.xpPerGe || a.artifactLabel.localeCompare(b.artifactLabel))
+        case "name":
+        default:
+            return rows.sort((a, b) => a.artifactLabel.localeCompare(b.artifactLabel))
+    }
 }
 
 function formatPercent(value: number): string {
@@ -213,11 +221,35 @@ export default function Home(): JSX.Element {
                         </div>
                     </div>
                     <div className="sort-section">
-                        <span>Sort by:</span>
+                        <span>Sort rows by:</span>
                         <button className={sortKey === "name" ? "active" : ""} onClick={() => setSortKey("name")}>Name</button>
                         <button className={sortKey === "xp" ? "active" : ""} onClick={() => setSortKey("xp")}>Total XP</button>
                         <button className={sortKey === "xpPerGe" ? "active" : ""} onClick={() => setSortKey("xpPerGe")}>XP / GE</button>
                     </div>
+                    <h3>Standalone Craft Options (Direct vs Auto-Crafting)</h3>
+                    <table className="results-table">
+                        <thead>
+                            <tr>
+                                <th>Artifact</th>
+                                <th className="num">Craftable Count</th>
+                                <th className="num">Total XP</th>
+                                <th className="num">GE Cost</th>
+                                <th className="num">XP / GE</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {getModeComparisonRows(solution, sortKey).map((row) => (
+                                <tr key={row.key}>
+                                    <td className="artifact-name">{row.artifactLabel}</td>
+                                    <td className="num">{row.count.toLocaleString()}</td>
+                                    <td className="num">{row.xp.toLocaleString()}</td>
+                                    <td className="num">{row.cost.toLocaleString()}</td>
+                                    <td className="num">{row.xpPerGe.toFixed(2)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    <h3>LP Max-XP Plan (Reference)</h3>
                     <table className="results-table">
                         <thead>
                             <tr>
@@ -252,35 +284,13 @@ export default function Home(): JSX.Element {
                             ))}
                         </tbody>
                     </table>
-                    <h3>Direct vs Auto-Craft Comparison</h3>
-                    <table className="results-table">
-                        <thead>
-                            <tr>
-                                <th>Artifact</th>
-                                <th className="num">Craftable Count</th>
-                                <th className="num">Total XP</th>
-                                <th className="num">GE Cost</th>
-                                <th className="num">XP / GE</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {getModeComparisonRows(solution, sortKey).map((row) => (
-                                <tr key={row.key}>
-                                    <td className="artifact-name">{row.artifactLabel}</td>
-                                    <td className="num">{row.count.toLocaleString()}</td>
-                                    <td className="num">{row.xp.toLocaleString()}</td>
-                                    <td className="num">{row.cost.toLocaleString()}</td>
-                                    <td className="num">{row.xpPerGe.toFixed(2)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
                     <p className="footnote">
                         * This view calculates the optimal crafts that maximize XP based on your current inventory.
                         Counts and costs include any intermediate crafts required to build higher-tier items, and GE
-                        costs reflect your personal crafting history discounts. The comparison table shows standalone
-                        direct-vs-autocraft results for each row item, so those counts are per-item and are not
-                        additive across rows. Need help? Visit{" "}
+                        costs reflect your personal crafting history discounts. The standalone table above is usually
+                        the best view for deciding what to craft for XP/GE efficiency, while the LP table is a
+                        max-XP reference plan. Standalone row counts are per-item simulations from your current state
+                        and are not additive across rows. Need help? Visit{" "}
                         <a href="/diagnostics">diagnostics</a>.
                     </p>
                 </>
