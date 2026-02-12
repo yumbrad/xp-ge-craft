@@ -7,6 +7,14 @@ import React, { JSX, useState, useEffect } from "react"
 
 type SortKey = "name" | "xp" | "xpPerGe"
 type InventoryResponse = CraftingProfile & { error?: string, details?: string }
+interface ModeComparisonRow {
+    key: string,
+    artifactLabel: string,
+    count: number,
+    xp: number,
+    cost: number,
+    xpPerGe: number,
+}
 
 /**
  * Fetches artifact data and runs the linear program solver.
@@ -50,6 +58,32 @@ function getSortedArtifacts(solution: Solution, sortKey: SortKey): string[] {
     }
 }
 
+function getModeComparisonRows(solution: Solution, sortKey: SortKey): ModeComparisonRow[] {
+    const rows: ModeComparisonRow[] = []
+    for (const artifact of getSortedArtifacts(solution, sortKey)) {
+        const craft = solution.crafts[artifact]
+        rows.push({
+            key: `${artifact}:direct`,
+            artifactLabel: `${artifact} (direct craft)`,
+            count: craft.modeComparison.direct.count,
+            xp: craft.modeComparison.direct.xp,
+            cost: craft.modeComparison.direct.cost,
+            xpPerGe: craft.modeComparison.direct.xpPerGe,
+        })
+        if (craft.modeComparison.auto) {
+            rows.push({
+                key: `${artifact}:auto`,
+                artifactLabel: `${artifact} (with auto-crafting)`,
+                count: craft.modeComparison.auto.count,
+                xp: craft.modeComparison.auto.xp,
+                cost: craft.modeComparison.auto.cost,
+                xpPerGe: craft.modeComparison.auto.xpPerGe,
+            })
+        }
+    }
+    return rows
+}
+
 function formatPercent(value: number): string {
     return `${(value * 100).toFixed(1)}%`
 }
@@ -70,7 +104,11 @@ function getCostTooltip(artifact: string, craft: Solution["crafts"][string]): st
         `Current discount: ${formatPercent(costDetails.discountPercent)}`,
         `Next craft cost: ${costDetails.discountedCost.toLocaleString()} GE`,
         `Direct GE cost in table (${plannedCrafts.toLocaleString()} ${craftLabel}): ${costDetails.totalDirectCost.toLocaleString()} GE`,
+        `Standalone direct craftability: ${craft.modeComparison.direct.count.toLocaleString()} crafts (${craft.modeComparison.direct.cost.toLocaleString()} GE total)`,
     ]
+    if (craft.modeComparison.auto) {
+        lines.push(`Standalone auto-craft craftability: ${craft.modeComparison.auto.count.toLocaleString()} crafts (${craft.modeComparison.auto.cost.toLocaleString()} GE total)`)
+    }
     if (costDetails.ingredients.length > 0) {
         lines.push("Ingredient direct costs for one parent craft (sequential discounts):")
         for (const ingredient of costDetails.ingredients) {
@@ -214,10 +252,35 @@ export default function Home(): JSX.Element {
                             ))}
                         </tbody>
                     </table>
+                    <h3>Direct vs Auto-Craft Comparison</h3>
+                    <table className="results-table">
+                        <thead>
+                            <tr>
+                                <th>Artifact</th>
+                                <th className="num">Craftable Count</th>
+                                <th className="num">Total XP</th>
+                                <th className="num">GE Cost</th>
+                                <th className="num">XP / GE</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {getModeComparisonRows(solution, sortKey).map((row) => (
+                                <tr key={row.key}>
+                                    <td className="artifact-name">{row.artifactLabel}</td>
+                                    <td className="num">{row.count.toLocaleString()}</td>
+                                    <td className="num">{row.xp.toLocaleString()}</td>
+                                    <td className="num">{row.cost.toLocaleString()}</td>
+                                    <td className="num">{row.xpPerGe.toFixed(2)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                     <p className="footnote">
                         * This view calculates the optimal crafts that maximize XP based on your current inventory.
                         Counts and costs include any intermediate crafts required to build higher-tier items, and GE
-                        costs reflect your personal crafting history discounts. Need help? Visit{" "}
+                        costs reflect your personal crafting history discounts. The comparison table shows standalone
+                        direct-vs-autocraft results for each row item, so those counts are per-item and are not
+                        additive across rows. Need help? Visit{" "}
                         <a href="/diagnostics">diagnostics</a>.
                     </p>
                 </>

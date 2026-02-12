@@ -13,10 +13,23 @@ export interface Solution {
             xpPerGe: number,
             xpPerCraft: number,
             costDetails: CostDetails,
+            modeComparison: CraftModeComparison,
         },
     },
     totalXp: number,
     totalCost: number,
+}
+
+export interface CraftModeMetrics {
+    count: number,
+    xp: number,
+    cost: number,
+    xpPerGe: number,
+}
+
+export interface CraftModeComparison {
+    direct: CraftModeMetrics,
+    auto: CraftModeMetrics | null,
 }
 
 export interface CostDetails {
@@ -68,7 +81,8 @@ export function optimizeCrafts(highs: Highs, inventory: Inventory, craftCounts: 
             const costDetails = getCostDetails(recipes, craftCounts, artifact, count)
             const cost = costDetails.totalDirectCost
             const xpPerGe = cost > 0 ? xp / cost : 0
-            result.crafts[artifact] = { count, xp, cost, xpPerGe, xpPerCraft, costDetails }
+            const modeComparison = getCraftModeComparison(recipes, inventory, craftCounts, artifact, xpPerCraft)
+            result.crafts[artifact] = { count, xp, cost, xpPerGe, xpPerCraft, costDetails, modeComparison }
             result.totalXp += xp
             result.totalCost += cost
         }
@@ -184,6 +198,117 @@ function getBatchDirectCost(baseCost: number, craftCount: number, quantity: numb
         totalCost += getDiscountedCost(baseCost, craftCount + index).discountedCost
     }
     return totalCost
+}
+
+function getCraftModeComparison(
+    recipes: Recipes,
+    inventory: Inventory,
+    craftCounts: CraftCounts,
+    artifact: string,
+    xpPerCraft: number,
+): CraftModeComparison {
+    const directResult = simulateCraftMode(recipes, inventory, craftCounts, artifact, false)
+    const direct = {
+        count: directResult.count,
+        xp: directResult.count * xpPerCraft,
+        cost: directResult.cost,
+        xpPerGe: directResult.cost > 0 ? (directResult.count * xpPerCraft) / directResult.cost : 0,
+    }
+
+    const recipe = recipes[artifact]
+    if (!recipe) {
+        return { direct, auto: null }
+    }
+    const hasCraftableIngredient = Object.keys(recipe.ingredients).some((ingredient) => Boolean(recipes[ingredient]))
+    if (!hasCraftableIngredient) {
+        return { direct, auto: null }
+    }
+
+    const autoResult = simulateCraftMode(recipes, inventory, craftCounts, artifact, true)
+    const auto = {
+        count: autoResult.count,
+        xp: autoResult.count * xpPerCraft,
+        cost: autoResult.cost,
+        xpPerGe: autoResult.cost > 0 ? (autoResult.count * xpPerCraft) / autoResult.cost : 0,
+    }
+    return { direct, auto }
+}
+
+function simulateCraftMode(
+    recipes: Recipes,
+    inventory: Inventory,
+    craftCounts: CraftCounts,
+    artifact: string,
+    allowAutocraft: boolean,
+): { count: number, cost: number } {
+    const simulationInventory = cloneCountMap(inventory)
+    const simulationCraftCounts = cloneCountMap(craftCounts)
+    let totalCost = 0
+    let craftedCount = 0
+    while (craftOne(recipes, simulationInventory, simulationCraftCounts, artifact, allowAutocraft, (cost) => {
+        totalCost += cost
+    })) {
+        craftedCount += 1
+    }
+    return {
+        count: craftedCount,
+        cost: totalCost,
+    }
+}
+
+function craftOne(
+    recipes: Recipes,
+    inventory: Record<string, number>,
+    craftCounts: Record<string, number>,
+    artifact: string,
+    allowAutocraft: boolean,
+    onCost: (cost: number) => void,
+    stack: Set<string> = new Set(),
+): boolean {
+    const recipe = recipes[artifact]
+    if (!recipe) {
+        return false
+    }
+    if (stack.has(artifact)) {
+        throw new Error(`Cycle detected while simulating recipe for ${artifact}`)
+    }
+    stack.add(artifact)
+
+    for (const [ingredient, rawQuantity] of Object.entries(recipe.ingredients)) {
+        const requiredQuantity = Math.max(0, Math.round(rawQuantity))
+        while ((inventory[ingredient] || 0) < requiredQuantity) {
+            if (!allowAutocraft || !recipes[ingredient]) {
+                stack.delete(artifact)
+                return false
+            }
+            const didCraftIngredient = craftOne(recipes, inventory, craftCounts, ingredient, true, onCost, stack)
+            if (!didCraftIngredient) {
+                stack.delete(artifact)
+                return false
+            }
+        }
+    }
+
+    for (const [ingredient, rawQuantity] of Object.entries(recipe.ingredients)) {
+        const requiredQuantity = Math.max(0, Math.round(rawQuantity))
+        inventory[ingredient] = Math.max(0, (inventory[ingredient] || 0) - requiredQuantity)
+    }
+
+    const craftCount = craftCounts[artifact] || 0
+    const { discountedCost } = getDiscountedCost(recipe.cost, craftCount)
+    onCost(discountedCost)
+    craftCounts[artifact] = craftCount + 1
+    inventory[artifact] = (inventory[artifact] || 0) + 1
+    stack.delete(artifact)
+    return true
+}
+
+function cloneCountMap(values: Record<string, number>): Record<string, number> {
+    const clone = {} as Record<string, number>
+    for (const [key, value] of Object.entries(values)) {
+        clone[key] = Math.max(0, Math.round(value || 0))
+    }
+    return clone
 }
 
 function getDiscountedCost(baseCost: number, craftCount: number): { discountedCost: number, discountPercent: number } {
