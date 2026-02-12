@@ -24,6 +24,11 @@ interface BackupInventoryItem {
             level?: string | number,
             rarity?: string,
         },
+        stones?: Array<{
+            name?: string,
+            level?: string | number,
+            rarity?: string,
+        }>,
     },
     quantity?: number,
 }
@@ -157,16 +162,28 @@ async function getProtoRoot(): Promise<protobuf.Root> {
 
 function parseInventory(items: BackupInventoryItem[]): Inventory {
     const inventory = {} as Inventory
-    for (const item of items) {
-        const spec = item.artifact?.spec
-        if (!spec || spec.rarity !== "COMMON") {
-            continue
-        }
+    const addQuantity = (spec: { name?: string, level?: string | number }, quantity: number) => {
         const name = formatSpecName(spec)
-        if (!name) {
-            continue
+        if (!name || quantity <= 0) {
+            return
         }
-        inventory[name] = Math.round(item.quantity || 0)
+        inventory[name] = (inventory[name] || 0) + quantity
+    }
+    for (const item of items) {
+        const quantity = Math.round(item.quantity || 0)
+        const spec = item.artifact?.spec
+        if (spec?.rarity === "COMMON") {
+            addQuantity(spec, quantity)
+        }
+        const stones = item.artifact?.stones || []
+        for (const stone of stones) {
+            if (stone.rarity !== "COMMON") {
+                continue
+            }
+            // Socketed stones in artifacts are part of the old inventory view
+            // and can be recovered by unslotting in-game.
+            addQuantity(stone, quantity > 0 ? quantity : 1)
+        }
     }
     return inventory
 }
