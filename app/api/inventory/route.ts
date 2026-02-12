@@ -24,6 +24,11 @@ interface BackupInventoryItem {
             level?: string | number,
             rarity?: string,
         },
+        stones?: Array<{
+            name?: string,
+            level?: string | number,
+            rarity?: string,
+        }>,
     },
     quantity?: number,
 }
@@ -64,6 +69,7 @@ let protoRootPromise: Promise<protobuf.Root> | null = null
 export async function GET(request: NextRequest): Promise<Response> {
     // Get EID from request query
     const eid = request.nextUrl.searchParams.get("eid")
+    const includeSlotted = parseIncludeSlotted(request.nextUrl.searchParams.get("includeSlotted"))
     if (!eid) {
         return new Response(JSON.stringify({
             error: "no EID provided"
@@ -72,7 +78,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     // Get inventory from EID
     try {
-        const craftingProfile = await getCraftingProfile(eid)
+        const craftingProfile = await getCraftingProfile(eid, includeSlotted)
         return new Response(JSON.stringify(craftingProfile), { status: 200 })
     } catch (error) {
         const details = error instanceof Error ? error.message : "unknown error"
@@ -87,7 +93,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 /**
  * Fetches and parses the artifact inventory and craft history associated with an EID.
  */
-async function getCraftingProfile(eid: string): Promise<CraftingProfile> {
+async function getCraftingProfile(eid: string, includeSlotted: boolean): Promise<CraftingProfile> {
     const root = await getProtoRoot()
     const RequestMessage = root.lookupType("ei.EggIncFirstContactRequest")
     const ResponseMessage = root.lookupType("ei.EggIncFirstContactResponse")
@@ -143,9 +149,17 @@ async function getCraftingProfile(eid: string): Promise<CraftingProfile> {
         throw new Error(data.errorMessage || "error fetching backup")
     }
 
-    const inventory = parseInventory(data.backup?.artifactsDb?.inventoryItems || [])
+    const inventory = parseInventory(data.backup?.artifactsDb?.inventoryItems || [], includeSlotted)
     const craftCounts = parseCraftCounts(data.backup?.artifactsDb?.artifactStatus || [])
     return { inventory, craftCounts }
+}
+
+function parseIncludeSlotted(value: string | null): boolean {
+    if (!value) {
+        return true
+    }
+    const normalizedValue = value.trim().toLowerCase()
+    return !(normalizedValue === "0" || normalizedValue === "false" || normalizedValue === "no" || normalizedValue === "off")
 }
 
 async function getProtoRoot(): Promise<protobuf.Root> {
@@ -155,18 +169,33 @@ async function getProtoRoot(): Promise<protobuf.Root> {
     return protoRootPromise
 }
 
-function parseInventory(items: BackupInventoryItem[]): Inventory {
+function parseInventory(items: BackupInventoryItem[], includeSlotted: boolean): Inventory {
     const inventory = {} as Inventory
-    for (const item of items) {
-        const spec = item.artifact?.spec
-        if (!spec || spec.rarity !== "COMMON") {
-            continue
-        }
+    const addQuantity = (spec: { name?: string, level?: string | number }, quantity: number) => {
         const name = formatSpecName(spec)
-        if (!name) {
+        if (!name || quantity <= 0) {
+            return
+        }
+        inventory[name] = (inventory[name] || 0) + quantity
+    }
+    for (const item of items) {
+        const quantity = Math.round(item.quantity || 0)
+        const spec = item.artifact?.spec
+        if (spec?.rarity === "COMMON") {
+            addQuantity(spec, quantity)
+        }
+        if (!includeSlotted) {
             continue
         }
-        inventory[name] = Math.round(item.quantity || 0)
+        const stones = item.artifact?.stones || []
+        for (const stone of stones) {
+            if (stone.rarity !== "COMMON") {
+                continue
+            }
+            // Socketed stones in artifacts are part of the old inventory view
+            // and can be recovered by unslotting in-game.
+            addQuantity(stone, quantity > 0 ? quantity : 1)
+        }
     }
     return inventory
 }
@@ -193,8 +222,18 @@ function formatSpecName(spec?: { name?: string, level?: string | number }): stri
     if (levelIndex == null) {
         return null
     }
+    const normalizedName = spec.name.toLowerCase()
+    if (normalizedName.endsWith("_stone_fragment")) {
+        const baseName = normalizedName.replace("_stone_fragment", "_stone")
+        const tier = levelIndex + 1
+        return `${baseName}_${tier}`
+    }
+    if (normalizedName.endsWith("_stone")) {
+        const tier = levelIndex + 2
+        return `${normalizedName}_${tier}`
+    }
     const tier = levelIndex + 1
-    return `${spec.name.toLowerCase()}_${tier}`
+    return `${normalizedName}_${tier}`
 }
 
 function decodeFirstContactResponse(options: {
