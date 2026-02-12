@@ -20,8 +20,8 @@ interface ModeComparisonRow {
 /**
  * Fetches artifact data and runs the linear program solver.
  */
-async function getOptimalCrafts(highs: Highs, eid: string): Promise<Solution> {
-    const response = await fetch(`/api/inventory?eid=${encodeURIComponent(eid)}`)
+async function getOptimalCrafts(highs: Highs, eid: string, includeSlotted: boolean): Promise<Solution> {
+    const response = await fetch(`/api/inventory?eid=${encodeURIComponent(eid)}&includeSlotted=${includeSlotted ? "true" : "false"}`)
     let data: InventoryResponse | null = null
     try {
         data = await response.json()
@@ -135,6 +135,7 @@ function getCostTooltip(artifact: string, craft: Solution["crafts"][string]): st
 export default function Home(): JSX.Element {
     const highs = useHighs()
     const [ eid, setEID ] = useState<string>("")
+    const [ includeSlotted, setIncludeSlotted ] = useState<boolean>(true)
     const [ solution, setSolution ] = useState<Solution | null>(null)
     const [ sortKey, setSortKey ] = useState<SortKey>("name")
     const [ error, setError ] = useState<string | null>(null)
@@ -150,6 +151,9 @@ export default function Home(): JSX.Element {
     useEffect(() => {
         if (window.localStorage["eid"]) {
             setEID(window.localStorage["eid"])
+        }
+        if (window.localStorage["includeSlottedStones"] != null) {
+            setIncludeSlotted(window.localStorage["includeSlottedStones"] !== "false")
         }
     }, [])
 
@@ -180,7 +184,8 @@ export default function Home(): JSX.Element {
         setIsLoading(true)
         try {
             window.localStorage["eid"] = eid
-            const result = await getOptimalCrafts(highs, eid)
+            window.localStorage["includeSlottedStones"] = includeSlotted ? "true" : "false"
+            const result = await getOptimalCrafts(highs, eid, includeSlotted)
             setSolution(result)
         } catch (caughtError) {
             const message = caughtError instanceof Error ? caughtError.message : "Unable to load inventory."
@@ -204,6 +209,14 @@ export default function Home(): JSX.Element {
                 <button onClick={runOptimize} disabled={isLoading || !highs}>
                     {isLoading ? "Calculating..." : "Calculate"}
                 </button>
+                <label className="input-checkbox">
+                    <input
+                        type="checkbox"
+                        checked={includeSlotted}
+                        onChange={(event) => setIncludeSlotted(event.target.checked)}
+                    />
+                    Include slotted stones as crafting ingredients
+                </label>
             </div>
             {errorMessage && (
                 <div className="error">
@@ -298,7 +311,8 @@ export default function Home(): JSX.Element {
                     <p className="footnote">
                         * This view calculates the optimal crafts that maximize XP based on your current inventory.
                         Counts and costs include any intermediate crafts required to build higher-tier items, and GE
-                        costs reflect your personal crafting history discounts. The standalone table above is usually
+                        costs reflect your personal crafting history discounts. The slotted-stones toggle controls
+                        whether in-use slotted stones are counted as available ingredients. The standalone table above is usually
                         the best view for deciding what to craft for XP/GE efficiency, while the LP table is a
                         max-XP reference plan. Standalone row counts are per-item simulations from your current state
                         and are not additive across rows. Need help? Visit{" "}

@@ -69,6 +69,7 @@ let protoRootPromise: Promise<protobuf.Root> | null = null
 export async function GET(request: NextRequest): Promise<Response> {
     // Get EID from request query
     const eid = request.nextUrl.searchParams.get("eid")
+    const includeSlotted = parseIncludeSlotted(request.nextUrl.searchParams.get("includeSlotted"))
     if (!eid) {
         return new Response(JSON.stringify({
             error: "no EID provided"
@@ -77,7 +78,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     // Get inventory from EID
     try {
-        const craftingProfile = await getCraftingProfile(eid)
+        const craftingProfile = await getCraftingProfile(eid, includeSlotted)
         return new Response(JSON.stringify(craftingProfile), { status: 200 })
     } catch (error) {
         const details = error instanceof Error ? error.message : "unknown error"
@@ -92,7 +93,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 /**
  * Fetches and parses the artifact inventory and craft history associated with an EID.
  */
-async function getCraftingProfile(eid: string): Promise<CraftingProfile> {
+async function getCraftingProfile(eid: string, includeSlotted: boolean): Promise<CraftingProfile> {
     const root = await getProtoRoot()
     const RequestMessage = root.lookupType("ei.EggIncFirstContactRequest")
     const ResponseMessage = root.lookupType("ei.EggIncFirstContactResponse")
@@ -148,9 +149,17 @@ async function getCraftingProfile(eid: string): Promise<CraftingProfile> {
         throw new Error(data.errorMessage || "error fetching backup")
     }
 
-    const inventory = parseInventory(data.backup?.artifactsDb?.inventoryItems || [])
+    const inventory = parseInventory(data.backup?.artifactsDb?.inventoryItems || [], includeSlotted)
     const craftCounts = parseCraftCounts(data.backup?.artifactsDb?.artifactStatus || [])
     return { inventory, craftCounts }
+}
+
+function parseIncludeSlotted(value: string | null): boolean {
+    if (!value) {
+        return true
+    }
+    const normalizedValue = value.trim().toLowerCase()
+    return !(normalizedValue === "0" || normalizedValue === "false" || normalizedValue === "no" || normalizedValue === "off")
 }
 
 async function getProtoRoot(): Promise<protobuf.Root> {
@@ -160,7 +169,7 @@ async function getProtoRoot(): Promise<protobuf.Root> {
     return protoRootPromise
 }
 
-function parseInventory(items: BackupInventoryItem[]): Inventory {
+function parseInventory(items: BackupInventoryItem[], includeSlotted: boolean): Inventory {
     const inventory = {} as Inventory
     const addQuantity = (spec: { name?: string, level?: string | number }, quantity: number) => {
         const name = formatSpecName(spec)
@@ -174,6 +183,9 @@ function parseInventory(items: BackupInventoryItem[]): Inventory {
         const spec = item.artifact?.spec
         if (spec?.rarity === "COMMON") {
             addQuantity(spec, quantity)
+        }
+        if (!includeSlotted) {
+            continue
         }
         const stones = item.artifact?.stones || []
         for (const stone of stones) {
