@@ -193,8 +193,18 @@ function formatSpecName(spec?: { name?: string, level?: string | number }): stri
     if (levelIndex == null) {
         return null
     }
+    const normalizedName = spec.name.toLowerCase()
+    if (normalizedName.endsWith("_stone_fragment")) {
+        const baseName = normalizedName.replace("_stone_fragment", "_stone")
+        const tier = levelIndex + 1
+        return `${baseName}_${tier}`
+    }
+    if (normalizedName.endsWith("_stone")) {
+        const tier = levelIndex + 2
+        return `${normalizedName}_${tier}`
+    }
     const tier = levelIndex + 1
-    return `${spec.name.toLowerCase()}_${tier}`
+    return `${normalizedName}_${tier}`
 }
 
 function decodeFirstContactResponse(options: {
