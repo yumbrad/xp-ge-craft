@@ -223,7 +223,7 @@ function decodeFirstContactResponse(options: {
             throw new Error(`Authenticated response contained no payload to decode (${responseDetails})`)
         }
         let payloadBytes = authenticatedPayload.message
-        if (authenticatedPayload.compressed) {
+        if (authenticatedPayload.compressed || hasCompressionHeader(payloadBytes)) {
             payloadBytes = inflateAuthenticatedMessage(authenticatedPayload.message)
         }
         try {
@@ -242,10 +242,8 @@ function decodeFirstContactResponse(options: {
  */
 function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
     const payload = Buffer.from(message)
-    const isGzip = payload.length >= 2 && payload[0] === 0x1f && payload[1] === 0x8b
-    const isZlib = payload.length >= 2
-        && payload[0] === 0x78
-        && ((payload[0] << 8) + payload[1]) % 31 === 0
+    const isGzip = isGzipHeader(payload)
+    const isZlib = isValidZlibHeader(payload)
     const decompressionMethods: Array<{ name: string, attempt: () => Uint8Array }> = []
     const fallbackMethods: Array<{ name: string, attempt: () => Uint8Array }> = []
     const addMethod = (method: { name: string, attempt: () => Uint8Array }, prefer: boolean) => {
@@ -268,9 +266,26 @@ function inflateAuthenticatedMessage(message: Uint8Array): Uint8Array {
         }
     }
     const lastErrorMessage = lastError instanceof Error ? lastError.message : String(lastError)
-    const headerPreview = Array.from(payload.slice(0, 4))
+    const headerPreviewBytes = 4
+    const headerPreview = Array.from(payload.slice(0, headerPreviewBytes))
         .map((byte) => byte.toString(16).padStart(2, "0"))
         .join(" ")
     const attemptNames = decompressionMethods.map((attempt) => attempt.name).join(", ")
     throw new Error(`Unexpected compression format or corrupted data; failed to decompress authenticated message payload using ${attemptNames} (header ${headerPreview}) (${lastErrorMessage})`)
+}
+
+function hasCompressionHeader(payload: Uint8Array): boolean {
+    return isGzipHeader(payload) || isValidZlibHeader(payload)
+}
+
+function isGzipHeader(payload: Uint8Array): boolean {
+    return payload.length >= 2 && payload[0] === 0x1f && payload[1] === 0x8b
+}
+
+function isValidZlibHeader(payload: Uint8Array): boolean {
+    if (payload.length < 2 || payload[0] !== 0x78) {
+        return false
+    }
+    const header = (payload[0] << 8) + payload[1]
+    return header % 31 === 0
 }
