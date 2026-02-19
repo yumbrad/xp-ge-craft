@@ -58,9 +58,8 @@ const MAX_DISCOUNT_FACTOR = 0.9
 const DISCOUNT_CURVE_EXPONENT = 0.2
 const ZERO_TOLERANCE = 1e-9
 const HIGHS_SOLVE_OPTIONS = {
-    // Some real-world inventories trigger a HiGHS WASM presolve crash in MIP mode.
-    // Disabling presolve avoids the crash and keeps the solve stable.
-    presolve: "off",
+    // Keep presolve explicitly enabled with the updated HiGHS build.
+    presolve: "on",
 }
 
 /**

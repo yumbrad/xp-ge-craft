@@ -18,12 +18,14 @@ Options:
   --workdir DIR              Working directory for build mode (default: temporary directory)
   --keep-workdir             Keep build workdir after completion
   --force                    Remove existing --workdir before cloning (build mode only)
+  --closure-mode MODE        auto | on | off (default: auto; build mode only)
   --help                     Show this help text
 
 Examples:
   scripts/update-highs.sh
   scripts/update-highs.sh --mode build --highs-tag v1.13.1
   scripts/update-highs.sh --mode build --highs-js-ref v1.8.0 --highs-tag v1.13.1
+  scripts/update-highs.sh --mode build --closure-mode off
 EOF
 }
 
@@ -33,6 +35,63 @@ require_cmd() {
         echo "Missing required command: $command_name" >&2
         exit 1
     fi
+}
+
+detect_stack_flag_args() {
+    local probe_dir
+    probe_dir="$(mktemp -d)"
+    cat > "$probe_dir/probe.c" <<'EOF'
+int main(void) { return 0; }
+EOF
+
+    if emcc "$probe_dir/probe.c" -O0 -s STACK_SIZE=65536 -o "$probe_dir/probe.js" >/dev/null 2>&1; then
+        STACK_FLAG_ARGS=(-s STACK_SIZE=4194304)
+        echo "Using emcc stack flag: -s STACK_SIZE=4194304"
+        rm -rf "$probe_dir"
+        return
+    fi
+
+    if emcc "$probe_dir/probe.c" -O0 -Wl,-z,stack-size=4194304 -o "$probe_dir/probe.js" >/dev/null 2>&1; then
+        STACK_FLAG_ARGS=(-Wl,-z,stack-size=4194304)
+        echo "Using emcc stack flag: -Wl,-z,stack-size=4194304"
+        rm -rf "$probe_dir"
+        return
+    fi
+
+    echo "Warning: unable to detect a supported stack size flag for emcc; continuing without one." >&2
+    STACK_FLAG_ARGS=()
+    rm -rf "$probe_dir"
+}
+
+detect_closure_flag_args() {
+    if [[ "$closure_mode" == "off" ]]; then
+        CLOSURE_FLAG_ARGS=(--closure 0)
+        echo "Using emcc closure mode: off"
+        return
+    fi
+
+    local probe_dir
+    probe_dir="$(mktemp -d)"
+    cat > "$probe_dir/probe.c" <<'EOF'
+int main(void) { return 0; }
+EOF
+
+    if emcc "$probe_dir/probe.c" -O0 --closure 1 -o "$probe_dir/probe.js" >/dev/null 2>&1; then
+        CLOSURE_FLAG_ARGS=(--closure 1)
+        echo "Using emcc closure mode: on"
+        rm -rf "$probe_dir"
+        return
+    fi
+    rm -rf "$probe_dir"
+
+    if [[ "$closure_mode" == "on" ]]; then
+        echo "Closure mode forced on, but emcc --closure 1 failed in probe build." >&2
+        echo "Check your closure-compiler installation or rerun with --closure-mode off." >&2
+        exit 1
+    fi
+
+    echo "Warning: closure compiler integration failed; falling back to --closure 0." >&2
+    CLOSURE_FLAG_ARGS=(--closure 0)
 }
 
 sha256_file() {
@@ -53,6 +112,9 @@ highs_tag=""
 workdir=""
 keep_workdir="false"
 force="false"
+closure_mode="auto"
+STACK_FLAG_ARGS=()
+CLOSURE_FLAG_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -84,6 +146,10 @@ while [[ $# -gt 0 ]]; do
             force="true"
             shift
             ;;
+        --closure-mode)
+            closure_mode="${2:-}"
+            shift 2
+            ;;
         --help|-h)
             usage
             exit 0
@@ -98,6 +164,12 @@ done
 
 if [[ "$mode" != "release" && "$mode" != "build" ]]; then
     echo "Invalid mode: $mode" >&2
+    usage >&2
+    exit 1
+fi
+
+if [[ "$closure_mode" != "auto" && "$closure_mode" != "on" && "$closure_mode" != "off" ]]; then
+    echo "Invalid closure mode: $closure_mode" >&2
     usage >&2
     exit 1
 fi
@@ -179,8 +251,33 @@ build_from_source() {
         git -C "$repo_dir/HiGHS" checkout "$highs_tag"
     fi
 
-    echo "Building highs.js/highs.wasm..."
-    (cd "$repo_dir" && ./build.sh)
+    echo "Building highs static library..."
+    (
+        cd "$repo_dir"
+        mkdir -p build
+        cd build
+        emcmake cmake ../HiGHS -DZLIB=OFF -DFAST_BUILD=OFF -DBUILD_SHARED_LIBS=OFF
+        emmake make -j"$(getconf _NPROCESSORS_ONLN)" libhighs
+    )
+
+    detect_stack_flag_args
+    detect_closure_flag_args
+    echo "Linking highs.js/highs.wasm..."
+    (
+        cd "$repo_dir/build"
+        export EMCC_CLOSURE_ARGS="--jscomp_off=checkTypes"
+        emcc -O3 \
+            -s EXPORTED_FUNCTIONS="@$repo_dir/exported_functions.json" \
+            -s EXPORTED_RUNTIME_METHODS="['cwrap']" \
+            -s MODULARIZE=1 \
+            -s ALLOW_MEMORY_GROWTH=1 \
+            "${STACK_FLAG_ARGS[@]}" \
+            -flto \
+            "${CLOSURE_FLAG_ARGS[@]}" \
+            --pre-js "$repo_dir/src/pre.js" \
+            --post-js "$repo_dir/src/post.js" \
+            lib/*.a -o highs.js
+    )
 
     install -m 0644 "$repo_dir/build/highs.js" "$target_dir_abs/highs.js"
     install -m 0644 "$repo_dir/build/highs.wasm" "$target_dir_abs/highs.wasm"
