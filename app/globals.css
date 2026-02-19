@@ -184,6 +184,66 @@ h1 {
     color: #c0c0c0;
 }
 
+.artifact-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    position: relative;
+}
+
+.artifact-icon-wrap {
+    display: inline-flex;
+    align-items: center;
+    position: relative;
+}
+
+.artifact-icon-thumb {
+    width: 1rem;
+    height: 1rem;
+    object-fit: contain;
+}
+
+.artifact-icon-preview {
+    position: absolute;
+    left: 1.3rem;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 0.3rem;
+    border-radius: 0.4rem;
+    border: 1px solid #3a3a5c;
+    background-color: #0f172a;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    display: none;
+    z-index: 50;
+    pointer-events: none;
+}
+
+.artifact-icon-large {
+    width: 5.5rem;
+    height: 5.5rem;
+    object-fit: contain;
+    display: block;
+}
+
+.artifact-cell:hover .artifact-icon-preview {
+    display: block;
+}
+
+.artifact-text {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35rem;
+}
+
+.artifact-title {
+    color: #d7d9e2;
+}
+
+.artifact-mode {
+    color: #98a1bd;
+    font-size: 0.72rem;
+}
+
 .value-tooltip {
     text-decoration: underline dashed;
     text-decoration-color: #848ba1;

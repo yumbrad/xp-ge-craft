@@ -2,6 +2,7 @@
 
 import type { CraftingProfile } from "./api/inventory/route"
 import useHighs from "../hooks/use-highs"
+import { getArtifactDisplayData, getArtifactDisplayLabel } from "../lib/artifact-display"
 import { Highs, Solution, optimizeCrafts } from "../lib/optimize"
 import React, { JSX, useState, useEffect } from "react"
 
@@ -10,7 +11,7 @@ type InventoryResponse = CraftingProfile & { error?: string, details?: string }
 interface ModeComparisonRow {
     key: string,
     artifact: string,
-    artifactLabel: string,
+    modeLabel: string,
     count: number,
     xp: number,
     cost: number,
@@ -49,7 +50,7 @@ function getSortedArtifacts(solution: Solution, sortKey: SortKey): string[] {
     const keys = Object.keys(solution.crafts)
     switch (sortKey) {
         case "name":
-            return keys.sort()
+            return keys.sort((a, b) => getArtifactDisplayLabel(a).localeCompare(getArtifactDisplayLabel(b)))
         case "xp":
             return keys.sort((a, b) => solution.crafts[b].xp - solution.crafts[a].xp)
         case "xpPerGe":
@@ -66,33 +67,72 @@ function getModeComparisonRows(solution: Solution, sortKey: SortKey): ModeCompar
         rows.push({
             key: `${artifact}:direct`,
             artifact,
-            artifactLabel: `${artifact} (direct craft)`,
+            modeLabel: "direct craft",
             count: craft.modeComparison.direct.count,
             xp: craft.modeComparison.direct.xp,
             cost: craft.modeComparison.direct.cost,
             xpPerGe: craft.modeComparison.direct.xpPerGe,
         })
         if (craft.modeComparison.auto) {
+            const autoExtraCount = Math.max(0, craft.modeComparison.auto.count - craft.modeComparison.direct.count)
+            const autoExtraXp = autoExtraCount * craft.xpPerCraft
+            const autoExtraCost = Math.max(0, craft.modeComparison.auto.cost - craft.modeComparison.direct.cost)
+            if (autoExtraCount <= 0) {
+                continue
+            }
             rows.push({
                 key: `${artifact}:auto`,
                 artifact,
-                artifactLabel: `${artifact} (with auto-crafting)`,
-                count: craft.modeComparison.auto.count,
-                xp: craft.modeComparison.auto.xp,
-                cost: craft.modeComparison.auto.cost,
-                xpPerGe: craft.modeComparison.auto.xpPerGe,
+                modeLabel: "auto-craftable beyond direct",
+                count: autoExtraCount,
+                xp: autoExtraXp,
+                cost: autoExtraCost,
+                xpPerGe: autoExtraCost > 0 ? autoExtraXp / autoExtraCost : 0,
             })
         }
     }
     switch (sortKey) {
         case "xp":
-            return rows.sort((a, b) => b.xp - a.xp || a.artifactLabel.localeCompare(b.artifactLabel))
+            return rows.sort((a, b) => b.xp - a.xp || getArtifactDisplayLabel(a.artifact).localeCompare(getArtifactDisplayLabel(b.artifact)) || a.modeLabel.localeCompare(b.modeLabel))
         case "xpPerGe":
-            return rows.sort((a, b) => b.xpPerGe - a.xpPerGe || a.artifactLabel.localeCompare(b.artifactLabel))
+            return rows.sort((a, b) => b.xpPerGe - a.xpPerGe || getArtifactDisplayLabel(a.artifact).localeCompare(getArtifactDisplayLabel(b.artifact)) || a.modeLabel.localeCompare(b.modeLabel))
         case "name":
         default:
-            return rows.sort((a, b) => a.artifactLabel.localeCompare(b.artifactLabel))
+            return rows.sort((a, b) => getArtifactDisplayLabel(a.artifact).localeCompare(getArtifactDisplayLabel(b.artifact)) || a.modeLabel.localeCompare(b.modeLabel))
     }
+}
+
+function ArtifactCell({ artifact, modeLabel }: { artifact: string, modeLabel?: string }): JSX.Element {
+    const displayData = getArtifactDisplayData(artifact)
+    if (!displayData) {
+        return (
+            <span>{artifact}{modeLabel ? ` (${modeLabel})` : ""}</span>
+        )
+    }
+    return (
+        <span className="artifact-cell">
+            <span className="artifact-icon-wrap">
+                <img
+                    src={displayData.smallIconUrl}
+                    alt={displayData.name}
+                    className="artifact-icon-thumb"
+                    loading="lazy"
+                />
+                <span className="artifact-icon-preview">
+                    <img
+                        src={displayData.largeIconUrl}
+                        alt={displayData.name}
+                        className="artifact-icon-large"
+                        loading="lazy"
+                    />
+                </span>
+            </span>
+            <span className="artifact-text">
+                <span className="artifact-title">{displayData.name} (T{displayData.tierNumber})</span>
+                {modeLabel && <span className="artifact-mode">({modeLabel})</span>}
+            </span>
+        </span>
+    )
 }
 
 function formatPercent(value: number): string {
@@ -108,7 +148,7 @@ function getCostTooltip(artifact: string, craft: Solution["crafts"][string]): st
     const plannedCrafts = Math.max(0, Math.round(craft.count))
     const craftLabel = plannedCrafts === 1 ? "craft" : "crafts"
     const lines = [
-        `Artifact: ${artifact}`,
+        `Artifact: ${getArtifactDisplayLabel(artifact)}`,
         `Crafts: ${craft.count.toLocaleString()}`,
         `Base GE cost: ${costDetails.baseCost.toLocaleString()}`,
         `Craft history: ${costDetails.craftCount.toLocaleString()}`,
@@ -257,7 +297,7 @@ export default function Home(): JSX.Element {
                             <tbody>
                                 {getModeComparisonRows(solution, sortKey).map((row) => (
                                     <tr key={row.key}>
-                                        <td className="artifact-name">{row.artifactLabel}</td>
+                                        <td className="artifact-name"><ArtifactCell artifact={row.artifact} modeLabel={row.modeLabel} /></td>
                                         <td className="num">{row.count.toLocaleString()}</td>
                                         <td className="num">
                                             <span className="value-tooltip" title={getXpTooltip(solution.crafts[row.artifact].xpPerCraft, row.count)}>
@@ -290,7 +330,7 @@ export default function Home(): JSX.Element {
                             <tbody>
                                 {getSortedArtifacts(solution, sortKey).map(artifact => (
                                     <tr key={artifact}>
-                                        <td className="artifact-name">{artifact}</td>
+                                        <td className="artifact-name"><ArtifactCell artifact={artifact} /></td>
                                         <td className="num">{solution.crafts[artifact].count.toLocaleString()}</td>
                                         <td className="num">
                                             <span className="value-tooltip" title={getXpTooltip(solution.crafts[artifact].xpPerCraft, solution.crafts[artifact].count)}>
@@ -314,8 +354,9 @@ export default function Home(): JSX.Element {
                         costs reflect your personal crafting history discounts. The slotted-stones toggle controls
                         whether in-use slotted stones are counted as available ingredients. The standalone table above is usually
                         the best view for deciding what to craft for XP/GE efficiency, while the LP table is a
-                        max-XP reference plan. Standalone row counts are per-item simulations from your current state
-                        and are not additive across rows. Need help? Visit{" "}
+                        max-XP reference plan. Standalone direct rows and auto-craft rows for the same artifact are additive
+                        to that artifact's auto-craft total, but rows across different artifacts are per-item simulations from
+                        your current state and are not additive. Need help? Visit{" "}
                         <a href="/diagnostics">diagnostics</a>.
                     </p>
                 </>
