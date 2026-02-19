@@ -2,7 +2,7 @@ import type { CraftCounts, Inventory } from "../app/api/inventory/route"
 import { Recipes, recipes } from "../data/recipes"
 
 export interface Highs {
-    solve: (problem: string) => any,
+    solve: (problem: string, options?: Record<string, string | number | boolean>) => any,
 }
 export interface Solution {
     crafts: {
@@ -57,6 +57,11 @@ const MAX_CRAFT_COUNT_FOR_DISCOUNT = 300
 const MAX_DISCOUNT_FACTOR = 0.9
 const DISCOUNT_CURVE_EXPONENT = 0.2
 const ZERO_TOLERANCE = 1e-9
+const HIGHS_SOLVE_OPTIONS = {
+    // Some real-world inventories trigger a HiGHS WASM presolve crash in MIP mode.
+    // Disabling presolve avoids the crash and keeps the solve stable.
+    presolve: "off",
+}
 
 /**
  * Calculates the crafts to maximize XP given the artifacts in an inventory.
@@ -64,8 +69,7 @@ const ZERO_TOLERANCE = 1e-9
 export function optimizeCrafts(highs: Highs, inventory: Inventory, craftCounts: CraftCounts = {}): Solution {
     // Run the highs solver on the LP problem
     const problem = getProblem(inventory)
-    console.log(problem)
-    const solution = highs.solve(problem)
+    const solution = highs.solve(problem, HIGHS_SOLVE_OPTIONS)
     console.log("Solution:", solution)
 
     // Store each craft and recompute the total XP
