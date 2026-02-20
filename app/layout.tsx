@@ -1,5 +1,6 @@
 import Script from "next/script"
 import { JSX } from "react"
+import { withBasePath } from "../lib/base-path"
 import "./globals.css"
 
 export const metadata = {
@@ -15,7 +16,7 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body>
-                <Script src="/highs.js" strategy="beforeInteractive"></Script>
+                <Script src={withBasePath("/highs.js")} strategy="beforeInteractive"></Script>
                 {children}
             </body>
         </html>

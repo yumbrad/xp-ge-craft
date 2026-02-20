@@ -3,8 +3,10 @@
 import type { CraftingProfile } from "./api/inventory/route"
 import useHighs from "../hooks/use-highs"
 import { getArtifactDisplayData, getArtifactDisplayLabel } from "../lib/artifact-display"
+import { withBasePath } from "../lib/base-path"
 import { Highs, Solution, optimizeCrafts } from "../lib/optimize"
 import React, { JSX, useState, useEffect } from "react"
+import Link from "next/link"
 
 type SortKey = "name" | "xp" | "xpPerGe"
 type InventoryResponse = CraftingProfile & { error?: string, details?: string }
@@ -22,7 +24,7 @@ interface ModeComparisonRow {
  * Fetches artifact data and runs the linear program solver.
  */
 async function getOptimalCrafts(highs: Highs, eid: string, includeSlotted: boolean): Promise<Solution> {
-    const response = await fetch(`/api/inventory?eid=${encodeURIComponent(eid)}&includeSlotted=${includeSlotted ? "true" : "false"}`)
+    const response = await fetch(withBasePath(`/api/inventory?eid=${encodeURIComponent(eid)}&includeSlotted=${includeSlotted ? "true" : "false"}`))
     let data: InventoryResponse | null = null
     try {
         data = await response.json()
@@ -261,7 +263,7 @@ export default function Home(): JSX.Element {
             {errorMessage && (
                 <div className="error">
                     {errorMessage}{" "}
-                    <a href="/diagnostics">Open diagnostics</a>.
+                    <Link href="/diagnostics">Open diagnostics</Link>.
                 </div>
             )}
             {solution && (
@@ -357,7 +359,7 @@ export default function Home(): JSX.Element {
                         max-XP reference plan. Standalone direct rows and auto-craft rows for the same artifact are additive
                         to that artifact's auto-craft total, but rows across different artifacts are per-item simulations from
                         your current state and are not additive. Need help? Visit{" "}
-                        <a href="/diagnostics">diagnostics</a>.
+                        <Link href="/diagnostics">diagnostics</Link>.
                     </p>
                 </>
             )}
@@ -365,7 +367,7 @@ export default function Home(): JSX.Element {
                 <p className="footnote">
                     * Enter your Egg Inc. ID and calculate to see the optimal crafting plan, including XP totals and
                     discounted GE costs based on your crafting history. Need help? Visit{" "}
-                    <a href="/diagnostics">diagnostics</a>.
+                    <Link href="/diagnostics">diagnostics</Link>.
                 </p>
             )}
         </>

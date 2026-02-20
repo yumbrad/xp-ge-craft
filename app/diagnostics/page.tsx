@@ -1,6 +1,8 @@
 "use client"
 
+import Link from "next/link"
 import React, { JSX, useState } from "react"
+import { withBasePath } from "../../lib/base-path"
 
 export default function Diagnostics(): JSX.Element {
     const [ eid, setEID ] = useState<string>("")
@@ -19,7 +21,7 @@ export default function Diagnostics(): JSX.Element {
         setResponseText("")
         setIsLoading(true)
         try {
-            const response = await fetch(`/api/inventory?eid=${encodeURIComponent(eid)}`)
+            const response = await fetch(withBasePath(`/api/inventory?eid=${encodeURIComponent(eid)}`))
             setStatus(response.status)
             const text = await response.text()
             try {
@@ -68,7 +70,7 @@ export default function Diagnostics(): JSX.Element {
                 <pre className="diagnostics-output">{responseText}</pre>
             )}
             <p className="footnote">
-                Return to the <a href="/">optimizer</a> when you're done.
+                Return to the <Link href="/">optimizer</Link> when you're done.
             </p>
         </>
     )
