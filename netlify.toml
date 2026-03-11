@@ -1,5 +1,17 @@
 [[redirects]]
 from = "/"
-to = "/xp-ge-craft/"
+to = "https://hensin.space"
+status = 301
+force = true
+
+[[redirects]]
+from = "/xp-ge-craft"
+to = "https://hensin.space"
+status = 301
+force = true
+
+[[redirects]]
+from = "/xp-ge-craft/*"
+to = "https://hensin.space"
 status = 301
 force = true
